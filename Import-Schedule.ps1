@@ -8,24 +8,41 @@ class Event
    [string]   $class
    [string]   $lesson
    [string]   $room
+   [string]   $CYWeek
+   [string]   $FYWeek
+   [double]   $duration
 
    [ValidateSet("Primary", "Secondary", "Support")]
    [string] $Role
 
    [double] CalculateDuration()
    {
-       return ($this.end - $this.start).TotalHours
-   }
+       return ($this.end - $this.start).TotalHours.ToString("F2")
+   } # CaluculateDuration
 
-   [string] WeekOfYear()
+   [string] CYWeekOfYear()
    {
-       return ("{0}-Week-{1}" -f $this.start.Year, (Get-Date -Date $this.start -UFormat %V))
-   }
-   # Constructor
-   Event ()
-   {
-       $this.Instructor = ""
-   }
+       return "CY{0}-Week-{1}" -f $this.start.Year, (Get-Date -Date $this.start -UFormat %U)
+   } # CYWeekOfYear
+
+   [string] FYWeekOfYear()
+   {   
+       [int]$ThisFYWeek = Get-Date -Year $this.start.Year -Month 9 -Day 30 -UFormat %U
+       [int]$PrevFYWeek = Get-Date -Year ($this.start.Year - 1) -Month 9 -Day 30 -UFormat %U
+       $WeeksLast = if ((Get-Date -Year ($this.start.Year - 1) -Month 12 -Day 31).DayOfWeek -eq "Saturday") {
+           52 - $PrevFYWeek
+       }
+       else {
+           51 - $PrevFYWeek
+       }
+       $FY, $Wk = switch ($this.start.Month) {
+                    {$_ -le 9} {$this.start.Year, ([int](Get-Date -Date $this.start -UFormat %U) + $WeeksLast) }
+                    Default {$this.start.Year + 1, ([int](Get-Date -Date $this.start -UFormat %U) - $ThisFYWeek)}
+                } #switch on month
+
+       return "FY{0}-Week-{1}" -f $FY, $Wk
+   } # FYWeekOfYear
+     
    # Constructor
    Event ([string]   $Instructor, 
           [datetime] $start,
@@ -35,7 +52,7 @@ class Event
           [string]   $room,
           [string]   $lesson,
           [string]   $role          
-          )
+          ) # Constructor parameters
    {
        If ($end -le $start){Write-Error -Category InvalidData -Message "End must be after start!"}
        If ($role -notin "Primary", "Secondary", "Support") {Write-Error -Category InvalidData -Message "Role must be Primary, Secondary or Support"}
@@ -43,21 +60,72 @@ class Event
        $this.start      = $start
        $this.end        = $end
        $this.class      = $class
+       $this.course     = $course
        $this.room       = $room
        $this.lesson     = $lesson
-       $this.Role       = $role      
-   }
-}
+       $this.Role       = $role    
+       $this.duration   = $this.CalculateDuration()
+       $this.CYWeek     = $this.CYWeekOfYear()
+       $this.FYWeek     = $this.FYWeekOfYear()  
+   } #Constructor Definition
+} #Class Defition
 
+#This function is used to call the constructor so we can use a hashtable to create objects (splatting)
+function New-SchedEvent {
+    param (
+        [string]   $Instructor, 
+        [datetime] $start,
+        [datetime] $end,
+        [string]   $class,
+        [string]   $course,
+        [string]   $room,
+        [string]   $lesson,
+        [string]   $role          
+          ) # param
+    [Event]::new($Instructor, $start, $end, $class, $course, $room, $lesson, $role)
+    
+} #function New-SchedEvent
 <#
 .Synopsis
-   Imports an Excel Schedule and returns an array of Event objects.
+    Imports an Excel Schedule and returns an array of Event objects.
 .DESCRIPTION
-   Long description
+    Long description
 .EXAMPLE
-   Import-ExcelSched -Path '.\CVAH\CVAH 20-04.xlsx' -Course "CVAH" -Class "20-04"
+    Import-ExcelSched -Path '.\CVAH\CVAH 20-04.xlsx' -Course "CVAH" -Class "20-04"
 .EXAMPLE
-   "20-02.xlsx", "20-04.xlsx" | Import-ExcelSched
+    $schedules = @(
+        [PSCustomObject]@{
+            path   = '.\Schedules\CVAH\CVAH 20-04.xlsx'
+            course = "CVAH"
+            class  = "20-04"
+        },
+        [PSCustomObject]@{
+            path   = '.\Schedules\CVAH\CVAH 20-05.xlsx'
+            course = "CVAH"
+            class  = "20-05"
+        },
+        [PSCustomObject]@{
+            path   = '.\Schedules\CVAH\CVAH 20-06.xlsx'
+            course = "CVAH"
+            class  = "20-06"
+        },
+        [PSCustomObject]@{
+            path   = '.\Schedules\CVAH\CVAH 20-08.xlsx'
+            course = "CVAH"
+            class  = "20-08"
+        },
+        [PSCustomObject]@{
+            path   = '.\Schedules\CWO\CWO 20-06 Schedule.xlsx'
+            course = "CWO"
+            class  = "20-06"
+        },
+        [PSCustomObject]@{
+            path   = '.\Schedules\CWO\CWO 20-08 Schedule.xlsx'
+            course = "CWO"
+            class  = "20-08"
+        }
+     )
+    $schedules | Import-ExcelSched
 #>
 function Import-ExcelSched
 {
@@ -81,11 +149,11 @@ function Import-ExcelSched
                    ValueFromPipelineByPropertyName=$true)]
         [string]
         $Class
-    )
+    ) # Param
     Begin
     {
         $objExcel = New-Object -ComObject Excel.application
-    }
+    } # Begin
     Process
     {
         If (!(Test-Path $Path)) {
@@ -143,14 +211,14 @@ function Import-ExcelSched
                 $Eventht.course     = $Course
                 $Eventht.Role       = "Primary"
                 $Eventht.Instructor = ($objWorksheet.Cells.Cells($row, 8).Text).Trim()
-                If ($Eventht.Instructor -ne "") {New-Object -TypeName event -Property $Eventht} # Return object from function
+                If ($Eventht.Instructor -ne "") {New-SchedEvent @Eventht} # Return object from function
                 $Eventht.Role       = "Secondary"
                 $Eventht.Instructor = ($objWorksheet.Cells.Cells($row, 13).Text).Trim()
-                If ($Eventht.Instructor -ne "") {New-Object -TypeName event -Property $Eventht} # Return object from function
+                If ($Eventht.Instructor -ne "") {New-SchedEvent @Eventht} # Return object from function
                 foreach ($SupportInstructor in ($objWorksheet.Cells.Cells($Row,12).Text -split "[,]|[\n]")) {
                     $Eventht.Role       = "Support"
                     $Eventht.Instructor = $SupportInstructor.Trim()
-                    If ($Eventht.Instructor -ne "") {New-Object -TypeName event -Property $Eventht} # Return object from function
+                    If ($Eventht.Instructor -ne "") {New-SchedEvent @Eventht} # Return object from function
                 } #foreach support instructor
             }            
             $Day = $NextDay
@@ -170,8 +238,8 @@ function Import-ExcelSched
         $objExcel.Quit()
         $objExcel = $null
         Get-Process -Name EXCEL | Where-Object {$_.MainWindowHandle -eq 0} | Stop-Process
-    }
-}
+    } # End
+} # function Import-ExcelSched
 
 function DevTesting {
     $schedules = @(
@@ -210,5 +278,4 @@ function DevTesting {
          $events | Out-GridView
          $events | Export-Csv .\events.csv -Force
 }
-
-
+ DevTesting
