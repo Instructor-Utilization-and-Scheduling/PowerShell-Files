@@ -12,6 +12,15 @@ class Event
    [ValidateSet("Primary", "Secondary", "Support")]
    [string] $Role
 
+   [double] CalculateDuration()
+   {
+       return ($this.end - $this.start).TotalHours
+   }
+
+   [string] WeekOfYear()
+   {
+       return ("{0}-Week-{1}" -f $this.start.Year, (Get-Date -Date $this.start -UFormat %V))
+   }
    # Constructor
    Event ()
    {
