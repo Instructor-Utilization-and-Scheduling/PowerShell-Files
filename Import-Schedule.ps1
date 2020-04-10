@@ -15,11 +15,7 @@ class Event
    # Constructor
    Event ()
    {
-       $this.Instructor = $null
-       $this.course     = $null
-       $this.class      = $null
-       $this.room       = $null
-       $this.lesson     = $null
+       $this.Instructor = ""
    }
    # Constructor
    Event ([string]   $Instructor, 
@@ -50,7 +46,7 @@ class Event
 .DESCRIPTION
    Long description
 .EXAMPLE
-   Import-ExcelSched -Path .\20-02.xlsx
+   Import-ExcelSched -Path '.\CVAH\CVAH 20-04.xlsx' -Course "CVAH" -Class "20-04"
 .EXAMPLE
    "20-02.xlsx", "20-04.xlsx" | Import-ExcelSched
 #>
@@ -79,6 +75,7 @@ function Import-ExcelSched
     )
     Begin
     {
+        $objExcel = New-Object -ComObject Excel.application
     }
     Process
     {
@@ -86,10 +83,9 @@ function Import-ExcelSched
             Write-Error -Category ObjectNotFound -Message "$Path does not exist!"
             Return $null
         } #if Test-Path
-        Write-Progress -Activity "Importing Schedule" -CurrentOperation "Creating Excel Objects" -PercentComplete -1
+        Write-Progress -Activity "Importing Schedule $Path" -CurrentOperation "Creating Excel Objects" -PercentComplete -1
         Try {
             $xlsfile = Get-Item -Path $Path 
-            $objExcel = New-Object -ComObject Excel.application
             $objWorkbook = $objExcel.Workbooks.Open($xlsfile.FullName)
             $objExcel.Visible = $false
             $objWorksheet = $objWorkbook.Sheets.item(1)
@@ -113,7 +109,7 @@ function Import-ExcelSched
             Try {$Date = Get-Date -Date $Date}
             Catch { Write-Error -Category InvalidData -Message "Can't convert $Date to date ($Address)"; BREAK} # Can't convert date probably at end of sheet on template section.
             $DayHT = @{Day = $Date.Day; Month = $Date.Month; Year = $Date.Year}
-            Write-Progress -Activity "Importing Schedule" -CurrentOperation "Processing $($Date.ToString('d-MMM-yy'))" -PercentComplete $progress
+            Write-Progress -Activity "Importing Schedule $Path" -CurrentOperation "Processing $($Date.ToString('d-MMM-yy'))" -PercentComplete $progress
             $NextDay = $objWorksheet.Cells.FindNext($Day)
             $NextAddress = $NextDay.Address(0,0,1,1)
             If ($NextAddress -eq $BeginAddress) { BREAK }  #End of schedule (Relies on Templates at bottom of worksheet)
@@ -123,29 +119,29 @@ function Import-ExcelSched
                 $startHour, $startMin = $objWorksheet.Cells.Cells($row, 2).Text -split ":"
                 $endHour, $endMin     = $objWorksheet.Cells.Cells($row, 3).Text -split ":"
 
-                $Event            = [Event]::new()
-                $Event.room       = $objWorksheet.Cells.Cells($row, 1).Text
+                $Eventht            = @{}
+                $Eventht.room       = $objWorksheet.Cells.Cells($row, 1).Text
                 Try {
-                    $Event.start      = Get-Date @DayHT -Hour $startHour -Minute $startMin -Second 0
-                    $Event.end        = Get-Date @DayHT -Hour $endHour   -Minute $endMin   -Second 0
+                    $Eventht.start      = Get-Date @DayHT -Hour $startHour -Minute $startMin -Second 0
+                    $Eventht.end        = Get-Date @DayHT -Hour $endHour   -Minute $endMin   -Second 0
                 }
                 Catch {
                     Write-Error -Category InvalidData -Message "Can't get times ($Address)"
                     Continue
                 }
-                $Event.lesson     = $objWorksheet.Cells.Cells($row, 5).Text + " / " + $objWorksheet.Cells.Cells($row, 6).Text
-                $Event.class      = $class
-                $Event.course     = $Course
-                $Event.Role       = "Primary"
-                $Event.Instructor = ($objWorksheet.Cells.Cells($row, 8).Text).Trim()
-                If ($Event.Instructor -ne "") {$Event} # Return object from function
-                $Event.Role       = "Secondary"
-                $Event.Instructor = ($objWorksheet.Cells.Cells($row, 13).Text).Trim()
-                If ($Event.Instructor -ne "") {$Event} # Return object from function
+                $Eventht.lesson     = ($objWorksheet.Cells.Cells($row, 5).Text + " / " + $objWorksheet.Cells.Cells($row, 6).Text) -replace "\n"," - "
+                $Eventht.class      = $class
+                $Eventht.course     = $Course
+                $Eventht.Role       = "Primary"
+                $Eventht.Instructor = ($objWorksheet.Cells.Cells($row, 8).Text).Trim()
+                If ($Eventht.Instructor -ne "") {New-Object -TypeName event -Property $Eventht} # Return object from function
+                $Eventht.Role       = "Secondary"
+                $Eventht.Instructor = ($objWorksheet.Cells.Cells($row, 13).Text).Trim()
+                If ($Eventht.Instructor -ne "") {New-Object -TypeName event -Property $Eventht} # Return object from function
                 foreach ($SupportInstructor in ($objWorksheet.Cells.Cells($Row,12).Text -split "[,]|[\n]")) {
-                    $Event.Role       = "Support"
-                    $Event.Instructor = $SupportInstructor.Trim()
-                    If ($Event.Instructor -ne "") {$Event} # Return object from function
+                    $Eventht.Role       = "Support"
+                    $Eventht.Instructor = $SupportInstructor.Trim()
+                    If ($Eventht.Instructor -ne "") {New-Object -TypeName event -Property $Eventht} # Return object from function
                 } #foreach support instructor
             }            
             $Day = $NextDay
@@ -154,15 +150,56 @@ function Import-ExcelSched
             If ($Address -eq $BeginAddress) { BREAK } #End of schedule   
         }# Main while loop for every day in the schedule.
         #cleaning up
-        Write-Progress -Activity "Importing Schedule" -CurrentOperation "Cleaning Up" -PercentComplete 99
+        Write-Progress -Activity "Importing Schedule $Path" -CurrentOperation "Cleaning Up" -PercentComplete 99
         $objWorksheet = $null
         $objWorkbook.Close($false)
         $objWorkbook = $null
-        $objExcel.Quit()
-        $objExcel = $null
-        Get-Process -Name EXCEL | Where-Object {$_.MainWindowHandle -eq 0} | Stop-Process
+       
     } #process
     End
     {
+        $objExcel.Quit()
+        $objExcel = $null
+        Get-Process -Name EXCEL | Where-Object {$_.MainWindowHandle -eq 0} | Stop-Process
     }
 }
+
+function DevTesting {
+    $schedules = @(
+        [PSCustomObject]@{
+            path   = '.\Schedules\CVAH\CVAH 20-04.xlsx'
+            course = "CVAH"
+            class  = "20-04"
+        },
+        [PSCustomObject]@{
+            path   = '.\Schedules\CVAH\CVAH 20-05.xlsx'
+            course = "CVAH"
+            class  = "20-05"
+        },
+        [PSCustomObject]@{
+            path   = '.\Schedules\CVAH\CVAH 20-06.xlsx'
+            course = "CVAH"
+            class  = "20-06"
+        },
+        [PSCustomObject]@{
+            path   = '.\Schedules\CVAH\CVAH 20-08.xlsx'
+            course = "CVAH"
+            class  = "20-08"
+        },
+        [PSCustomObject]@{
+            path   = '.\Schedules\CWO\CWO 20-06 Schedule.xlsx'
+            course = "CWO"
+            class  = "20-06"
+        },
+        [PSCustomObject]@{
+            path   = '.\Schedules\CWO\CWO 20-08 Schedule.xlsx'
+            course = "CWO"
+            class  = "20-08"
+        }
+     )
+         $events = $schedules | Import-ExcelSched
+         $events | Out-GridView
+         $events | Export-Csv .\events.csv -Force
+}
+
+
