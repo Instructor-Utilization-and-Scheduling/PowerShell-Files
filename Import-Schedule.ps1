@@ -12,7 +12,7 @@ class InstructorEvent
    [string]   $FYWeek
    [double]   $duration
    
-   [ValidateSet("Primary", "Secondary", "Support")]
+   [ValidateSet("Primary", "Secondary", "Support", "Secondary/Support")]
    [string] $Role
    
    hidden [int] $FY 
@@ -62,7 +62,7 @@ class InstructorEvent
           ) # Constructor parameters
    {
        If ($end -le $start){Write-Error -Category InvalidData -Message "End must be after start!"}
-       If ($role -notin "Primary", "Secondary", "Support") {Write-Error -Category InvalidData -Message "Role must be Primary, Secondary or Support"}
+       If ($role -notin "Primary", "Secondary", "Support", "Secondary/Support") {Write-Error -Category InvalidData -Message "Role must be Primary, Secondary or Support"}
        $this.Instructor = $Instructor
        $this.start      = $start
        $this.end        = $end
@@ -239,22 +239,38 @@ function Import-ExcelSched
                 $Eventht.Role       = "Primary"
                 $Eventht.Instructor = ($objWorksheet.Cells.Cells($row, 8).Text).Trim()
                 If ($Eventht.Instructor -in ($alias).alias){
-                    $Eventht.Instructor = $alias | Where-Object {$_.alias -eq $Eventht.Instructor} | Select-Object -ExpandProperty Name
-                }
+                    $Eventht.Instructor = $alias | 
+                        Where-Object {$_.alias -eq $Eventht.Instructor} | 
+                            Select-Object -ExpandProperty Name
+                } # if alias
                 If ($Eventht.Instructor -ne "") {New-SchedEvent @Eventht} # Return object from function
-                $Eventht.Role       = "Secondary"
-                $Eventht.Instructor = ($objWorksheet.Cells.Cells($row, 13).Text).Trim()
-                If ($Eventht.Instructor -in ($alias.alias)){
-                    $Eventht.Instructor = $alias | Where-Object {$_.alias -eq $Eventht.Instructor} | Select-Object -ExpandProperty Name
-                }
-                If ($Eventht.Instructor -ne "") {New-SchedEvent @Eventht} # Return object from function
-                foreach ($SupportInstructor in ($objWorksheet.Cells.Cells($Row,12).Text -split "[,]|[\n]")) {
-                    $Eventht.Role       = "Support"
-                    $Eventht.Instructor = $SupportInstructor.Trim()
-                    If ($Eventht.Instructor -in ($alias).alias){
-                        $Eventht.Instructor = $alias | Where-Object {$_.alias -eq $Eventht.Instructor} | Select-Object -ExpandProperty Name
-                    }
-                    If ($Eventht.Instructor -ne "") {New-SchedEvent @Eventht} # Return object from function
+                $Secondary = ($objWorksheet.Cells.Cells($row, 13).Text).Trim()
+                If ($Secondary -in ($alias.alias)){
+                    $Secondary = $alias | 
+                        Where-Object {$_.alias -eq $Secondary} | 
+                            Select-Object -ExpandProperty Name
+                } # if alias
+                $MIR = @($objWorksheet.Cells.Cells($Row,12).Text -split "[,]|[\n]").trim() | Where-Object {$_ -ne ""}
+                If ($Secondary -ne "" -and $Secondary -notin $MIR) {
+                    $Eventht.role       = "Secondary"
+                    $Eventht.instructor = $Secondary
+                    New-SchedEvent @Eventht # Return object from function
+                } # If just secondary
+                foreach ($SupportInstructor in $MIR) {
+                    If ($SupportInstructor -in ($alias).alias){
+                        $SupportInstructor = $alias | 
+                            Where-Object {$_.alias -eq $SupportInstructor} | 
+                                Select-Object -ExpandProperty Name
+                    } # If alias
+                    If ($SupportInstructor -eq $Secondary){
+                        $Eventht.role       = "Secondary/Support"
+                        $Eventht.Instructor = $Secondary
+                        New-SchedEvent @Eventht # Return object from function
+                        CONTINUE
+                    } # if multi-role
+                    $Eventht.role       = "Support"
+                    $Eventht.Instructor = $SupportInstructor
+                    New-SchedEvent @Eventht # Return object from function
                 } #foreach support instructor
             }            
             $Day = $NextDay
@@ -375,6 +391,9 @@ function Measure-Events {
                             @{n="Support_Hours"
                                 e={[double]($_.Group | Where-Object Role -eq "Support" | Measure-Object -Sum duration).sum}
                                 f="N2"},
+                            @{n="Secondary/Support_Hours"
+                                e={[double]($_.Group | Where-Object Role -eq "Secondary/Support" | Measure-Object -Sum duration).sum}
+                                f="N2"},
                             @{n="Total_Hours"
                                 e={[double]($_.Group | Measure-Object -Sum duration).sum}
                                 f="N2"},
@@ -403,6 +422,9 @@ function Measure-Events {
                                             @{n="Support_Hours"
                                                 e={[double]($_.Group | Where-Object Role -eq "Support" | Measure-Object -Sum duration).sum}
                                                 f="N2"},
+                                            @{n="Secondary/Support_Hours"
+                                                e={[double]($_.Group | Where-Object Role -eq "Secondary/Support" | Measure-Object -Sum duration).sum}
+                                                f="N2"},
                                             @{n="Total_Hours"
                                                 e={[double]($_.Group | Measure-Object -Sum duration).sum}
                                                 f="N2"},
@@ -418,6 +440,5 @@ function MeasureTesting()
     [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
     Measure-Events -events $events
 }
-
-MeasureTesting | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force
 #ImportTesting
+MeasureTesting | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force
