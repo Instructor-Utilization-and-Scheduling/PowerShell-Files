@@ -1,5 +1,5 @@
-# Define Event Class
-class Event
+# Define InstructorEvent Class
+class InstructorEvent
 {
    [string]   $Instructor
    [datetime] $start
@@ -11,9 +11,11 @@ class Event
    [string]   $CYWeek
    [string]   $FYWeek
    [double]   $duration
-
+   
    [ValidateSet("Primary", "Secondary", "Support")]
    [string] $Role
+   
+   hidden [int] $FY 
 
    [double] CalculateDuration()
    {
@@ -22,29 +24,34 @@ class Event
 
    [string] CYWeekOfYear()
    {
-       return "CY{0}-Week-{1}" -f $this.start.Year, (Get-Date -Date $this.start -UFormat %U)
+        $startdate = $this.start.AddDays(-$this.start.DayOfWeek.value__)
+        $enddate   = $startdate.AddDays(6)
+        return "CY{0}-{1} / {2} - {3}" -f $this.start.Year, 
+                                            (Get-Date -Date $this.start -UFormat %U), 
+                                            $startdate.ToString("d-MMM-yyyy"), 
+                                            $enddate.ToString("d-MMM-yyyy")
+
    } # CYWeekOfYear
 
    [string] FYWeekOfYear()
    {   
-       [int]$ThisFYWeek = Get-Date -Year $this.start.Year -Month 9 -Day 30 -UFormat %U
-       [int]$PrevFYWeek = Get-Date -Year ($this.start.Year - 1) -Month 9 -Day 30 -UFormat %U
-       $WeeksLast = if ((Get-Date -Year ($this.start.Year - 1) -Month 12 -Day 31).DayOfWeek -eq "Saturday") {
-           52 - $PrevFYWeek
-       }
-       else {
-           51 - $PrevFYWeek
-       }
-       $FY, $Wk = switch ($this.start.Month) {
-                    {$_ -le 9} {$this.start.Year, ([int](Get-Date -Date $this.start -UFormat %U) + $WeeksLast) }
-                    Default {$this.start.Year + 1, ([int](Get-Date -Date $this.start -UFormat %U) - $ThisFYWeek)}
-                } #switch on month
+        $FYWeekBegin = Get-Date -Year ($this.FY - 1) -Month 10 -Day 1
+        $FYWeekBegin = $FYWeekBegin.AddDays(-$FYWeekBegin.DayOfWeek.value__)
+        $startdate = $FYWeekBegin   
+        foreach ($wk in 1..52) {
+            $startdate = $FYWeekBegin.AddDays(($wk - 1) * 7)
+            if ($startdate.AddDays(7) -gt $this.start) { BREAK }
+        } #foreach
+        $enddate   = $startdate.AddDays(6)
 
-       return "FY{0}-Week-{1}" -f $FY, $Wk
+       return "FY{0}-{1} / {2} - {3}" -f $this.FY, 
+                                        $Wk, 
+                                        $startdate.ToString("d-MMM-yyyy"), 
+                                        $enddate.ToString("d-MMM-yyyy")
    } # FYWeekOfYear
      
    # Constructor
-   Event ([string]   $Instructor, 
+   InstructorEvent ([string]   $Instructor, 
           [datetime] $start,
           [datetime] $end,
           [string]   $class,
@@ -65,9 +72,18 @@ class Event
        $this.lesson     = $lesson
        $this.Role       = $role    
        $this.duration   = $this.CalculateDuration()
+       $this.FY         = switch ($this.start.Month) {
+                            {$_ -le 9} {$this.start.Year}
+                            Default {$this.start.Year + 1 }
+                        } # switch
        $this.CYWeek     = $this.CYWeekOfYear()
        $this.FYWeek     = $this.FYWeekOfYear()  
+
    } #Constructor Definition
+
+   #Empty Constructor
+   InstructorEvent()
+   {$this.Instructor = ""}
 } #Class Defition
 
 #This function is used to call the constructor so we can use a hashtable to create objects (splatting)
@@ -82,12 +98,12 @@ function New-SchedEvent {
         [string]   $lesson,
         [string]   $role          
           ) # param
-    [Event]::new($Instructor, $start, $end, $class, $course, $room, $lesson, $role)
+    [InstructorEvent]::new($Instructor, $start, $end, $class, $course, $room, $lesson, $role)
     
 } #function New-SchedEvent
 <#
 .Synopsis
-    Imports an Excel Schedule and returns an array of Event objects.
+    Imports an Excel Schedule and returns an array of InstructorEvent objects.
 .DESCRIPTION
     Long description
 .EXAMPLE
@@ -130,7 +146,7 @@ function New-SchedEvent {
 function Import-ExcelSched
 {
     [CmdletBinding()]
-    [OutputType([Event])]
+    [OutputType([InstructorEvent])]
     Param
     (
         # Param1 help description
@@ -241,7 +257,7 @@ function Import-ExcelSched
     } # End
 } # function Import-ExcelSched
 
-function DevTesting {
+function ImportTesting {
     $schedules = @(
         [PSCustomObject]@{
             path   = '.\Schedules\CVAH\CVAH 20-04.xlsx'
@@ -278,4 +294,100 @@ function DevTesting {
          $events | Out-GridView
          $events | Export-Csv .\events.csv -Force
 }
- DevTesting
+function Measure-Events {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)]
+        [InstructorEvent[]]$events,
+
+        [ValidateSet("CYWeek","FYWeek")]
+        [string]
+        $WkGrouping = "FYWeek",
+
+        [double]
+        $UtilizationRate = .37
+    ) # param block
+
+    Begin {
+        $TotalWeeks = ($events | 
+            Sort-Object -Property $WkGrouping -Unique |
+                Measure-Object).count
+
+        $startdate = ($events | 
+            Sort-Object -Property start -Unique | 
+                Select-Object -First 1 -ExpandProperty start).ToString("d-MMM-yyyy")
+
+        $enddate = ($events | 
+            Sort-Object -Property start -Unique | 
+                Select-Object -Last 1 -ExpandProperty start).ToString("d-MMM-yyyy")
+
+        "Report Covering {0} - {1}" -f $startdate, $enddate
+        "`nClasses Loaded: {0}" -f (($events |
+                                        Sort-Object -Property "course", "class" -Unique |
+                                            Select-Object -Property @{n="classstring";e={"{0}-{1}" -f $_.course, $_.class}} |
+                                                Select-Object -ExpandProperty classstring) -join ", ")
+        "Utilization Rate: {0:P2}" -f $UtilizationRate
+        "Weekly: {0:N2} hrs / This Report: {1:N2} hrs" -f ($UtilizationRate * 40), ($UtilizationRate * (40 * $TotalWeeks))
+        "`nWeekly Summary:"
+        "-" * 100
+
+    } # Begin
+    process {
+        $events |
+            Sort-Object -Property $WkGrouping, Instructor |
+                Group-Object -Property $WkGrouping, Instructor |
+                    Select-Object -Property @{n=$WkGrouping;e={($_.Name -split ", ")[0]}},
+                                            @{n="Instructor";e={($_.Name -split ", ")[1]}}, * |
+                        Format-Table -GroupBy $WkGrouping -AutoSize -Property "Instructor",
+                                            @{n="Primary_Hours"
+                                                e={[double]($_.Group | Where-Object Role -eq "Primary" | Measure-Object -Sum duration).sum}
+                                                f="N2"},
+                                            @{n="Secondary_Hours"
+                                                e={[double]($_.Group | Where-Object Role -eq "Secondary" | Measure-Object -Sum duration).sum}
+                                                f="N2"},
+                                            @{n="Support_Hours"
+                                                e={[double]($_.Group | Where-Object Role -eq "Support" | Measure-Object -Sum duration).sum}
+                                                f="N2"},
+                                            @{n="Total_Hours"
+                                                e={[double]($_.Group | Measure-Object -Sum duration).sum}
+                                                f="N2"},
+                                            @{n="Utilization"
+                                                e={[double]($_.Group | Measure-Object -Sum duration).sum / (40 * $UtilizationRate)}
+                                                f="P2"}
+    } # Process
+
+    End {
+
+        "Totals {0} - {1}:" -f $startdate, $enddate
+        "-" * 100
+        $events |
+            Sort-Object -Property Instructor |
+                Group-Object -Property Instructor |
+                Sort-Object -Property @{e={[double]($_.Group | Measure-Object -Sum duration).sum}} -descending | 
+                    Format-Table -AutoSize -Property "Name",
+                                            @{n="Primary_Hours"
+                                                e={[double]($_.Group | Where-Object Role -eq "Primary" | Measure-Object -Sum duration).sum}
+                                                f="N2"},
+                                            @{n="Secondary_Hours"
+                                                e={[double]($_.Group | Where-Object Role -eq "Secondary" | Measure-Object -Sum duration).sum}
+                                                f="N2"},
+                                            @{n="Support_Hours"
+                                                e={[double]($_.Group | Where-Object Role -eq "Support" | Measure-Object -Sum duration).sum}
+                                                f="N2"},
+                                            @{n="Total_Hours"
+                                                e={[double]($_.Group | Measure-Object -Sum duration).sum}
+                                                f="N2"},
+                                            @{n="Utilization"
+                                                e={[double]($_.Group | Measure-Object -Sum duration).sum / (($TotalWeeks * 40) * $UtilizationRate)}
+                                                f="P2"} 
+
+    } # End
+} # function Measure-Events
+
+function MeasureTesting()
+{
+    [InstructorEvent[]]$events = Import-Csv .\events.csv
+    Measure-Events -events $events
+}
+
+MeasureTesting | Out-File -FilePath .\Analysis.txt -Force
