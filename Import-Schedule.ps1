@@ -164,14 +164,25 @@ function Import-ExcelSched
         [Parameter(Mandatory=$true,
                    ValueFromPipelineByPropertyName=$true)]
         [string]
-        $Class
+        $Class,
+
+        [Parameter(ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $AliasFile
     ) # Param
     Begin
     {
         $objExcel = New-Object -ComObject Excel.application
+
+
     } # Begin
     Process
     {
+        if ($AliasFile){
+            if (Test-Path -Path $AliasFile){
+                $alias = Import-Csv -Path $AliasFile
+            }
+        }
         If (!(Test-Path $Path)) {
             Write-Error -Category ObjectNotFound -Message "$Path does not exist!"
             Return $null
@@ -227,13 +238,22 @@ function Import-ExcelSched
                 $Eventht.course     = $Course
                 $Eventht.Role       = "Primary"
                 $Eventht.Instructor = ($objWorksheet.Cells.Cells($row, 8).Text).Trim()
+                If ($Eventht.Instructor -in ($alias).alias){
+                    $Eventht.Instructor = $alias | Where-Object {$_.alias -eq $Eventht.Instructor} | Select-Object -ExpandProperty Name
+                }
                 If ($Eventht.Instructor -ne "") {New-SchedEvent @Eventht} # Return object from function
                 $Eventht.Role       = "Secondary"
                 $Eventht.Instructor = ($objWorksheet.Cells.Cells($row, 13).Text).Trim()
+                If ($Eventht.Instructor -in ($alias.alias)){
+                    $Eventht.Instructor = $alias | Where-Object {$_.alias -eq $Eventht.Instructor} | Select-Object -ExpandProperty Name
+                }
                 If ($Eventht.Instructor -ne "") {New-SchedEvent @Eventht} # Return object from function
                 foreach ($SupportInstructor in ($objWorksheet.Cells.Cells($Row,12).Text -split "[,]|[\n]")) {
                     $Eventht.Role       = "Support"
                     $Eventht.Instructor = $SupportInstructor.Trim()
+                    If ($Eventht.Instructor -in ($alias).alias){
+                        $Eventht.Instructor = $alias | Where-Object {$_.alias -eq $Eventht.Instructor} | Select-Object -ExpandProperty Name
+                    }
                     If ($Eventht.Instructor -ne "") {New-SchedEvent @Eventht} # Return object from function
                 } #foreach support instructor
             }            
@@ -260,39 +280,45 @@ function Import-ExcelSched
 function ImportTesting {
     $schedules = @(
         [PSCustomObject]@{
-            path   = '.\Schedules\CVAH\CVAH 20-04.xlsx'
+            path   = 'C:\Users\micha\documents\inputdata\Schedules\CVAH\CVAH 20-04.xlsx'
             course = "CVAH"
             class  = "20-04"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
         },
         [PSCustomObject]@{
-            path   = '.\Schedules\CVAH\CVAH 20-05.xlsx'
+            path   = 'C:\Users\micha\Documents\InputData\Schedules\CVAH\CVAH 20-05.xlsx'
             course = "CVAH"
             class  = "20-05"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
         },
         [PSCustomObject]@{
-            path   = '.\Schedules\CVAH\CVAH 20-06.xlsx'
+            path   = 'C:\Users\micha\Documents\InputData\Schedules\CVAH\CVAH 20-06.xlsx'
             course = "CVAH"
             class  = "20-06"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
         },
         [PSCustomObject]@{
-            path   = '.\Schedules\CVAH\CVAH 20-08.xlsx'
+            path   = 'C:\Users\micha\Documents\InputData\Schedules\CVAH\CVAH 20-08.xlsx'
             course = "CVAH"
             class  = "20-08"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
         },
         [PSCustomObject]@{
-            path   = '.\Schedules\CWO\CWO 20-06 Schedule.xlsx'
+            path   = 'C:\Users\micha\Documents\InputData\Schedules\CWO\CWO 20-06 Schedule.xlsx'
             course = "CWO"
             class  = "20-06"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
         },
         [PSCustomObject]@{
-            path   = '.\Schedules\CWO\CWO 20-08 Schedule.xlsx'
+            path   = 'C:\Users\micha\Documents\InputData\Schedules\CWO\CWO 20-08 Schedule.xlsx'
             course = "CWO"
             class  = "20-08"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
         }
      )
          $events = $schedules | Import-ExcelSched
          $events | Out-GridView
-         $events | Export-Csv .\events.csv -Force
+         $events | Export-Csv "C:\Users\micha\Documents\OutputData\events.csv" -Force
 }
 function Measure-Events {
     [CmdletBinding()]
@@ -326,34 +352,37 @@ function Measure-Events {
                                         Sort-Object -Property "course", "class" -Unique |
                                             Select-Object -Property @{n="classstring";e={"{0}-{1}" -f $_.course, $_.class}} |
                                                 Select-Object -ExpandProperty classstring) -join ", ")
-        "Utilization Rate: {0:P2}" -f $UtilizationRate
-        "Weekly: {0:N2} hrs / This Report: {1:N2} hrs" -f ($UtilizationRate * 40), ($UtilizationRate * (40 * $TotalWeeks))
+        "Utilization Rate Used for Calculations: {0:P2}" -f $UtilizationRate
+        "Weekly Capacity: {0:N2} hrs / This Report Capacity: {1:N2} hrs" -f ($UtilizationRate * 40), ($UtilizationRate * (40 * $TotalWeeks))
         "`nWeekly Summary:"
         "-" * 100
 
     } # Begin
     process {
-        $events |
-            Sort-Object -Property $WkGrouping, Instructor |
-                Group-Object -Property $WkGrouping, Instructor |
-                    Select-Object -Property @{n=$WkGrouping;e={($_.Name -split ", ")[0]}},
-                                            @{n="Instructor";e={($_.Name -split ", ")[1]}}, * |
-                        Format-Table -GroupBy $WkGrouping -AutoSize -Property "Instructor",
-                                            @{n="Primary_Hours"
-                                                e={[double]($_.Group | Where-Object Role -eq "Primary" | Measure-Object -Sum duration).sum}
-                                                f="N2"},
-                                            @{n="Secondary_Hours"
-                                                e={[double]($_.Group | Where-Object Role -eq "Secondary" | Measure-Object -Sum duration).sum}
-                                                f="N2"},
-                                            @{n="Support_Hours"
-                                                e={[double]($_.Group | Where-Object Role -eq "Support" | Measure-Object -Sum duration).sum}
-                                                f="N2"},
-                                            @{n="Total_Hours"
-                                                e={[double]($_.Group | Measure-Object -Sum duration).sum}
-                                                f="N2"},
-                                            @{n="Utilization"
-                                                e={[double]($_.Group | Measure-Object -Sum duration).sum / (40 * $UtilizationRate)}
-                                                f="P2"}
+        foreach ($wk in ($events | Sort-Object -Property $WkGrouping -Unique | Select-Object -ExpandProperty $WkGrouping)) {
+            $wk
+            $events | 
+                Where-Object {$_.$WkGrouping -eq $wk} |
+                    Group-Object -Property Instructor |
+                        Sort-Object -Property @{e={($_.Group | Measure-Object -Sum duration).sum}} -Descending |
+                        Format-Table -AutoSize -Property @{n="Instructor";e={$_.Name}},
+                            @{n="Primary_Hours"
+                                e={[double]($_.Group | Where-Object Role -eq "Primary" | Measure-Object -Sum duration).sum}
+                                f="N2"},
+                            @{n="Secondary_Hours"
+                                e={[double]($_.Group | Where-Object Role -eq "Secondary" | Measure-Object -Sum duration).sum}
+                                f="N2"},
+                            @{n="Support_Hours"
+                                e={[double]($_.Group | Where-Object Role -eq "Support" | Measure-Object -Sum duration).sum}
+                                f="N2"},
+                            @{n="Total_Hours"
+                                e={[double]($_.Group | Measure-Object -Sum duration).sum}
+                                f="N2"},
+                            @{n="Utilization"
+                                e={[double]($_.Group | Measure-Object -Sum duration).sum / (40 * $UtilizationRate)}
+                                f="P2"}
+        } #foreach week
+
     } # Process
 
     End {
@@ -386,8 +415,9 @@ function Measure-Events {
 
 function MeasureTesting()
 {
-    [InstructorEvent[]]$events = Import-Csv .\events.csv
+    [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
     Measure-Events -events $events
 }
 
-MeasureTesting | Out-File -FilePath .\Analysis.txt -Force
+MeasureTesting | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force
+#ImportTesting
