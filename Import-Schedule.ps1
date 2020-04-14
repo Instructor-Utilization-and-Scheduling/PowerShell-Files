@@ -87,7 +87,8 @@ class InstructorEvent
 } #Class Defition
 
 #This function is used to call the constructor so we can use a hashtable to create objects (splatting)
-function New-SchedEvent {
+function New-SchedEvent 
+{
     param (
         [string]   $Instructor, 
         [datetime] $start,
@@ -101,6 +102,7 @@ function New-SchedEvent {
     [InstructorEvent]::new($Instructor, $start, $end, $class, $course, $room, $lesson, $role)
     
 } #function New-SchedEvent
+
 <#
 .Synopsis
     Imports an Excel Schedule and returns an array of InstructorEvent objects.
@@ -149,194 +151,287 @@ function Import-ExcelSched
     [OutputType([InstructorEvent])]
     Param
     (
-        # Param1 help description
+        # Path to excel file
         [Parameter(Mandatory=$true,
-                   ValueFromPipelineByPropertyName=$true,
-                   Position=0)]
+                   ValueFromPipelineByPropertyName=$true)]
         [string]
         $Path,
 
+        # Course name of the schedule imported
         [Parameter(Mandatory=$true,
                    ValueFromPipelineByPropertyName=$true)]
         [string]
         $Course,
 
+        # Class name of the schedule imported
         [Parameter(Mandatory=$true,
                    ValueFromPipelineByPropertyName=$true)]
         [string]
         $Class,
 
+        # Path to csv file of any Instructor name aliases. This csv will have an alias and name column.
+        # If the function discovers a name in the schedule that is an alias identified in this csv,
+        # it will replace the alias with the actual name per the csv.
         [Parameter(ValueFromPipelineByPropertyName=$true)]
         [string]
-        $AliasFile
+        $AliasFile,
+
+        # Date the schedule was publised.
+        [Parameter(ValueFromPipelineByPropertyName=$true)]
+        [datetime]
+        $AsOfDate
     ) # Param
+
     Begin
     {
+        # Excel ComObject used to import the excel workbook
         $objExcel = New-Object -ComObject Excel.application
-
+        
+        # File the function will write the results of the import to.
+        $ResultsFile = "$($env:TEMP)\SchedImportResults.txt"
+        # Remove results file from previous imports and initialize file.
+        If (Test-Path -Path $ResultsFile){Remove-Item -Path $ResultsFile}
 
     } # Begin
+
     Process
-    {
+    {        
+        # Creating hashtable that will be used for splatting the Write-Progress command throughout.
+        $Status = @{
+            Activity         = "Importing Schedule $Path"
+            CurrentOperation = "Creating Excel Objects"
+            PercentComplete  = -1
+        } # Status hashtable definition
+
+        "`nResults from importing {0}:" -f $Path  |
+            Out-File -FilePath $ResultsFile -Append
+        
+            # Checking to see if the AliasFile is a valid argument, then importing it.
         if ($AliasFile){
             if (Test-Path -Path $AliasFile){
                 $alias = Import-Csv -Path $AliasFile
             }
+            else {
+                "Alias file: $AliasFile is not valid." |
+                    Out-File -FilePath $ResultsFile -Append
+            }
         }
-        If (!(Test-Path $Path)) {
+
+        # Checking to see if the schedule is a valid file. If not, we can't do anything so writing an error
+        # and terminating function.
+        If (!(Test-Path -Path $Path)) {
             Write-Error -Category ObjectNotFound -Message "$Path does not exist!"
             Return $null
         } #if Test-Path
-        Write-Progress -Activity "Importing Schedule $Path" -CurrentOperation "Creating Excel Objects" -PercentComplete -1
+
+        # Update progress bar
+        Write-Progress @Status
+
         Try {
+            # The open method requires the full name (not relative path), creating a file object to force the full path.
             $xlsfile = Get-Item -Path $Path 
             $objWorkbook = $objExcel.Workbooks.Open($xlsfile.FullName)
+            # For some unknown reason the open method changes the Visible property to $true, so changing it back
             $objExcel.Visible = $false
+            # Assumes the schedule is the first sheet in the workbook.
             $objWorksheet = $objWorkbook.Sheets.item(1)
         } #Try create com objects
         Catch {
+            # If we can't create the required Excel objects, we can't do anything so generating an error and 
+            # terminating the
             Write-Error -Category OpenError -Message "Can't create required Excel objects"
             Return $null
         } #catch open errors
-        $progress = 5
-        Write-Progress -Activity "Importing Schedule" -CurrentOperation "Parsing Days" -PercentComplete $progress
+
+        # Updating progress bar
+        $status.PercentComplete = 5
+        $Status.CurrentOperation = "Parsing Days"
+        Write-Progress @Status
+
+        # Looking for "Day:" on the worksheet as it is our reference to find the start date.
         $Day = $objWorksheet.Cells.Find('Day:')
+        # if we can't find "Day:" anywhere, nothing to do. Generating error and terminating function.
         If (!$Day) {
             Write-Error -Category InvalidType -Message "$Path is not properly formatted. Can't find Day:"
             Return $null
         } #if can't find "Day:"
+
+        # Stores the absolute reference to the first cell containing "Day:"
         $BeginAddress = $Day.Address(0,0,1,1)
+        # Starting with the first address used for the while loop.
         $Address = $BeginAddress
+
+        # Infinite loop will BREAK when encountered in syntax.
+        $EventsCreated = 0
+        $lastday       = $false
         while ($true)
         {
-            $Date = $objWorksheet.Cells.Cells($Day.Row, $day.Column + 2).text
-            Try {$Date = Get-Date -Date $Date}
-            Catch { Write-Error -Category InvalidData -Message "Can't convert $Date to date ($Address)"; BREAK} # Can't convert date probably at end of sheet on template section.
-            $DayHT = @{Day = $Date.Day; Month = $Date.Month; Year = $Date.Year}
-            Write-Progress -Activity "Importing Schedule $Path" -CurrentOperation "Processing $($Date.ToString('d-MMM-yy'))" -PercentComplete $progress
+            # Finding the next "Day:" in the schedule so we know where the current day ends.
             $NextDay = $objWorksheet.Cells.FindNext($Day)
             $NextAddress = $NextDay.Address(0,0,1,1)
-            If ($NextAddress -eq $BeginAddress) { BREAK }  #End of schedule (Relies on Templates at bottom of worksheet)
+
+            # If the next "Day:" is the beginning then we know we are on the last day in the schedule.
+            # In this case we need to approximate the number of row in the last day. We will conservatively use 10.
+            If ($NextAddress -eq $BeginAddress) { 
+                $NextDay = $objWorksheet.Cells.Cells($Day.Row + 10, $Day.Column)
+                $NextAddress = $NextDay.Address(0,0,1,1)
+                $lastday = $true
+                Write-Verbose -Message "Last Day"
+            }  # If on last day.
+             
+            # The actual date is offset 2 colums from "Date:". Trim will remove and leading/trailing spaces.
+            $Date = ($objWorksheet.Cells.Cells($Day.Row, $day.Column + 2).text).trim()
+            # Making sure the value can be converted to a datetime object. Moving to next if so...
+            Try {$Date = Get-Date -Date $Date}
+            Catch { "$Address : Can't convert $Date value to a datetime object" | 
+                        Out-File -FilePath $ResultsFile -Append
+                    $Day = $NextDay
+                    $Address = $Day.Address(0,0,1,1)
+                    if ($lastday) { BREAK }
+                    else { CONTINUE }
+            } # Catch
+            
+            # Creating a hashtable used for splatting the Get-Date function
+            $DayHT = @{Day = $Date.Day; Month = $Date.Month; Year = $Date.Year}
+            # Updating progress bar
+            $status.CurrentOperation = "Processing $($Date.ToString('d-MMM-yy'))"
+            if ($status.PercentComplete -le 98) {
+                $status.PercentComplete += 2
+                Write-Progress @Status
+            }
+
+            # Now we go through each row in the current day
             foreach ($row in ($Day.Row + 1)..($NextDay.Row - 1)) {
-                If ($objWorksheet.Cells.Cells($row, 2).Text -in "", "X") {Continue} #blank row or maint day
-                If ($objWorksheet.Cells.Cells($row, 1).Text -in "Rm", "Location") {Continue} #header row
+                If ($objWorksheet.Cells.Cells($row, 2).Text -in "", "X") { CONTINUE } #blank row or maint day
+                If ($objWorksheet.Cells.Cells($row, 1).Text -in "Rm", "Location", "Room") { CONTINUE } #header row
+                
+                # Creating hashtable for splatting New-SchedEvent function.
+                $Eventht = @{}
+
+                # Getting the start and end time of the event.
                 $startHour, $startMin = $objWorksheet.Cells.Cells($row, 2).Text -split ":"
                 $endHour, $endMin     = $objWorksheet.Cells.Cells($row, 3).Text -split ":"
-
-                $Eventht            = @{}
-                $Eventht.room       = $objWorksheet.Cells.Cells($row, 1).Text
                 Try {
-                    $Eventht.start      = Get-Date @DayHT -Hour $startHour -Minute $startMin -Second 0
-                    $Eventht.end        = Get-Date @DayHT -Hour $endHour   -Minute $endMin   -Second 0
+                    $Eventht.start    = Get-Date @DayHT -Hour $startHour -Minute $startMin -Second 0
+                    $Eventht.end      = Get-Date @DayHT -Hour $endHour   -Minute $endMin   -Second 0
                 }
                 Catch {
-                    Write-Error -Category InvalidData -Message "Can't get times ($Address)"
-                    Continue
+                    "$Address : Can't convert date/time {0} - {1}" -f $objWorksheet.Cells.Cells($row, 2).Text, 
+                                                                      $objWorksheet.Cells.Cells($row, 3).Text  |
+                        Out-File -FilePath $ResultsFile -Append
+                    CONTINUE
                 }
+                
+                $Eventht.room       = $objWorksheet.Cells.Cells($row, 1).Text
                 $Eventht.lesson     = ($objWorksheet.Cells.Cells($row, 5).Text + " / " + $objWorksheet.Cells.Cells($row, 6).Text) -replace "\n"," - "
                 $Eventht.class      = $class
                 $Eventht.course     = $Course
                 $Eventht.Role       = "Primary"
                 $Eventht.Instructor = ($objWorksheet.Cells.Cells($row, 8).Text).Trim()
+
+                # Checking if schedule used an alias name, if so converting to real name
                 If ($Eventht.Instructor -in ($alias).alias){
                     $Eventht.Instructor = $alias | 
                         Where-Object {$_.alias -eq $Eventht.Instructor} | 
                             Select-Object -ExpandProperty Name
                 } # if alias
-                If ($Eventht.Instructor -ne "") {New-SchedEvent @Eventht} # Return object from function
+
+                # Checking for empty instructor value, if so skipping otherwise, creating an event.
+                If ($Eventht.Instructor -ne "") {
+                    New-SchedEvent @Eventht
+                    $EventsCreated++
+                } # if empty primary instructor
+
+                # Working on Secondary instructor. We'll hold off on creating the event until we know the instructor
+                # is not also in the support role.
                 $Secondary = ($objWorksheet.Cells.Cells($row, 13).Text).Trim()
+                #Checking to see if alias used
                 If ($Secondary -in ($alias.alias)){
                     $Secondary = $alias | 
                         Where-Object {$_.alias -eq $Secondary} | 
                             Select-Object -ExpandProperty Name
                 } # if alias
-                $MIR = @($objWorksheet.Cells.Cells($Row,12).Text -split "[,]|[\n]").trim() | Where-Object {$_ -ne ""}
-                If ($Secondary -ne "" -and $Secondary -notin $MIR) {
+                
+                # Getting a list of all the support instructors
+                $MIR = @($objWorksheet.Cells.Cells($Row,12).Text -split "[,]|[\n]").trim() | 
+                            Where-Object {$_ -ne ""}
+                
+                # if the Secondary is not also a support instructor, creating an event for Secondary
+                If ($Secondary -notin $MIR -and $Secondary -ne "") {
                     $Eventht.role       = "Secondary"
                     $Eventht.instructor = $Secondary
                     New-SchedEvent @Eventht # Return object from function
+                    $EventsCreated++
                 } # If just secondary
+
+                # Iterating through all the Support Instructors and creating an event for each
                 foreach ($SupportInstructor in $MIR) {
                     If ($SupportInstructor -in ($alias).alias){
                         $SupportInstructor = $alias | 
                             Where-Object {$_.alias -eq $SupportInstructor} | 
                                 Select-Object -ExpandProperty Name
                     } # If alias
+
+                    # Checking if support instructor is also the secondary
                     If ($SupportInstructor -eq $Secondary){
                         $Eventht.role       = "Secondary/Support"
                         $Eventht.Instructor = $Secondary
                         New-SchedEvent @Eventht # Return object from function
+                        $EventsCreated++
                         CONTINUE
                     } # if multi-role
+
+                    # Checking for outliers and creating Support Instructor event
                     $Eventht.role       = "Support"
                     $Eventht.Instructor = $SupportInstructor
+                    if ($SupportInstructor -like "Evaluator*" -or $SupportInstructor -like "DOM*") {
+                        CONTINUE 
+                    } # if
                     New-SchedEvent @Eventht # Return object from function
-                } #foreach support instructor
-            }            
+                    $EventsCreated++
+                } # foreach support instructor
+            } # foreach row in the day
+
+            # Moving to the next day in the loop           
             $Day = $NextDay
             $Address = $Day.Address(0,0,1,1)
-            $progress += 2
-            If ($Address -eq $BeginAddress) { BREAK } #End of schedule   
-        }# Main while loop for every day in the schedule.
-        #cleaning up
-        Write-Progress -Activity "Importing Schedule $Path" -CurrentOperation "Cleaning Up" -PercentComplete 99
+
+            if ($lastday) { BREAK } #End of schedule   
+        } # Main while loop for every day in the schedule.
+
+        # cleaning up
+        $Status.CurrentOperation = "Cleaning Up"
+        $Status.PercentComplete = 99
+        Write-Progress @Status
+        $Address      = $null
+        $NextAddress  = $null
+        $BeginAddress = $null
         $objWorksheet = $null
         $objWorkbook.Close($false)
-        $objWorkbook = $null
+        $objWorkbook  = $null
+
+        "`nEvents created: {0}`n{1}" -f $EventsCreated, ("-" * 60) |
+            Out-File -FilePath $ResultsFile -Append
        
-    } #process
+    } # process
+
     End
     {
+        # more cleanup
         $objExcel.Quit()
         $objExcel = $null
-        Get-Process -Name EXCEL | Where-Object {$_.MainWindowHandle -eq 0} | Stop-Process
+        Get-Process -Name EXCEL | 
+            Where-Object {$_.MainWindowHandle -eq 0} | 
+                Stop-Process
+        
+        # open Import Results file
+        Invoke-Item -Path $ResultsFile
     } # End
 } # function Import-ExcelSched
 
-function ImportTesting {
-    $schedules = @(
-        [PSCustomObject]@{
-            path   = 'C:\Users\micha\documents\inputdata\Schedules\CVAH\CVAH 20-04.xlsx'
-            course = "CVAH"
-            class  = "20-04"
-            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
-        },
-        [PSCustomObject]@{
-            path   = 'C:\Users\micha\Documents\InputData\Schedules\CVAH\CVAH 20-05.xlsx'
-            course = "CVAH"
-            class  = "20-05"
-            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
-        },
-        [PSCustomObject]@{
-            path   = 'C:\Users\micha\Documents\InputData\Schedules\CVAH\CVAH 20-06.xlsx'
-            course = "CVAH"
-            class  = "20-06"
-            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
-        },
-        [PSCustomObject]@{
-            path   = 'C:\Users\micha\Documents\InputData\Schedules\CVAH\CVAH 20-08.xlsx'
-            course = "CVAH"
-            class  = "20-08"
-            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
-        },
-        [PSCustomObject]@{
-            path   = 'C:\Users\micha\Documents\InputData\Schedules\CWO\CWO 20-06 Schedule.xlsx'
-            course = "CWO"
-            class  = "20-06"
-            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
-        },
-        [PSCustomObject]@{
-            path   = 'C:\Users\micha\Documents\InputData\Schedules\CWO\CWO 20-08 Schedule.xlsx'
-            course = "CWO"
-            class  = "20-08"
-            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"
-        }
-     )
-         $events = $schedules | Import-ExcelSched
-         $events | Out-GridView
-         $events | Export-Csv "C:\Users\micha\Documents\OutputData\events.csv" -Force
-}
-function Measure-Events {
+
+function Measure-Events 
+{
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)]
@@ -347,10 +442,13 @@ function Measure-Events {
         $WkGrouping = "FYWeek",
 
         [double]
-        $UtilizationRate = .37
+        $UtilizationRate = .37,
+
+        [datetime[]]
+        $holidays
     ) # param block
 
-    Begin {
+    Process {
         $TotalWeeks = ($events | 
             Sort-Object -Property $WkGrouping -Unique |
                 Measure-Object).count
@@ -369,12 +467,9 @@ function Measure-Events {
                                             Select-Object -Property @{n="classstring";e={"{0}-{1}" -f $_.course, $_.class}} |
                                                 Select-Object -ExpandProperty classstring) -join ", ")
         "Utilization Rate Used for Calculations: {0:P2}" -f $UtilizationRate
-        "Weekly Capacity: {0:N2} hrs / This Report Capacity: {1:N2} hrs" -f ($UtilizationRate * 40), ($UtilizationRate * (40 * $TotalWeeks))
         "`nWeekly Summary:"
         "-" * 100
 
-    } # Begin
-    process {
         foreach ($wk in ($events | Sort-Object -Property $WkGrouping -Unique | Select-Object -ExpandProperty $WkGrouping)) {
             $wk
             $events | 
@@ -402,10 +497,6 @@ function Measure-Events {
                                 f="P2"}
         } #foreach week
 
-    } # Process
-
-    End {
-
         "Totals {0} - {1}:" -f $startdate, $enddate
         "-" * 100
         $events |
@@ -432,13 +523,43 @@ function Measure-Events {
                                                 e={[double]($_.Group | Measure-Object -Sum duration).sum / (($TotalWeeks * 40) * $UtilizationRate)}
                                                 f="P2"} 
 
-    } # End
+    } # Process
 } # function Measure-Events
 
-function MeasureTesting()
+
+function TestingImport 
 {
+    [CmdletBinding()]
+    param (
+        [string[]]
+        $filepath
+    )
+
+    $schedules = @(foreach ($file in $filepath) {
+        $FileObj = Get-Item -Path $file
+        [PSCustomObject]@{
+                path = $file
+                course = (-split $FileObj.Name)[0]
+                class  = (-split $FileObj.Name)[1]
+                AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv"              
+            } # pscustomobject        
+        } # foreach file
+    ) # schedules array
+    $schedules | Import-ExcelSched
+
+} # function TestingImport
+
+$files = @(Get-ChildItem -Path "C:\Users\micha\Documents\InputData\Schedules\CWO" |
+                Select-Object -ExpandProperty FullName
+) # $files array
+
+$events = TestingImport -filepath $files
+$events | Export-csv -Path "C:\Users\micha\Documents\OutputData\events.csv" -Force
+
+
+
     [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
-    Measure-Events -events $events
-}
-#ImportTesting
-MeasureTesting | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force
+    $report = Measure-Events -events $events
+    $report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force
+
+
