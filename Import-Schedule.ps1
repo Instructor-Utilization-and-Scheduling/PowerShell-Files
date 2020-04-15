@@ -479,6 +479,8 @@ function Measure-Events
         $enddate = ($events | 
             Sort-Object -Property start -Unique | 
                 Select-Object -Last 1 -ExpandProperty start).ToString("d-MMM-yyyy")
+        
+        $TotalCapacity = 0
 
         "Report Covering {0} - {1}" -f $startdate, $enddate
         "`nClasses Loaded: {0}" -f (($events |
@@ -490,7 +492,16 @@ function Measure-Events
         "-" * 100
 
         foreach ($wk in ($events | Sort-Object -Property $WkGrouping -Unique | Select-Object -ExpandProperty $WkGrouping)) {
-            $wk
+            $fullwk = ($wk -split "/")[1].trim()
+            [datetime]$startwk, [datetime]$endwk = $fullwk -split " - " 
+            $WeeklyCapacity = 40
+            foreach ($holiday in $holidays) {
+                if ($holiday -ge $startwk -and $holiday -le $endwk) {
+                    $WeeklyCapacity -= 8
+                } # if holiday in week
+            } # foreach holiday
+            $TotalCapacity += $WeeklyCapacity
+            "{0}`tCapacity = {1} hours`t100% Utilization = {2} hours" -f $wk, $WeeklyCapacity, ($WeeklyCapacity * $UtilizationRate)
             $events | 
                 Where-Object {$_.$WkGrouping -eq $wk} |
                     Group-Object -Property Instructor |
@@ -512,11 +523,12 @@ function Measure-Events
                                 e={[double]($_.Group | Measure-Object -Sum duration).sum}
                                 f="N2"},
                             @{n="Utilization"
-                                e={[double]($_.Group | Measure-Object -Sum duration).sum / (40 * $UtilizationRate)}
+                                e={[double]($_.Group | Measure-Object -Sum duration).sum / ($WeeklyCapacity * $UtilizationRate)}
                                 f="P2"}
         } #foreach week
 
         "Totals {0} - {1}:" -f $startdate, $enddate
+        "Capacity = {0} hours`t100% Utilization = {1} hours" -f $TotalCapacity, ($TotalCapacity * $UtilizationRate)
         "-" * 100
         $events |
             Sort-Object -Property Instructor |
@@ -568,7 +580,7 @@ function TestingImport
 } # function TestingImport
 
 
-#Testing
+<# #Testing
 $files = @(Get-ChildItem -Path "C:\Users\micha\Documents\InputData\Schedules\CWO" |
                 Select-Object -ExpandProperty FullName
 ) # $files array
@@ -582,8 +594,7 @@ TestingImport -filepath $files |
 [datetime[]]$holidays = Get-Content -Path C:\Users\micha\Documents\InputData\Holidays.txt | Get-Date
 [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
 $report = Measure-Events -events $events -holidays $holidays
-$report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force
-
+$report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force #>
 
 
 
