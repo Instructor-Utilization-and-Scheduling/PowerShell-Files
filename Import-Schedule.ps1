@@ -219,7 +219,7 @@ function Import-ExcelSched
             # Checking to see if the AliasFile is a valid argument, then importing it.
         if ($AliasFile){
             if (Test-Path -Path $AliasFile){
-                $alias = Import-Csv -Path $AliasFile
+                $alias = Import-Csv -Path $AliasFile | Sort-Object -Property Alias -Unique
             }
             else {
                 "Alias file: $AliasFile is not valid." |
@@ -395,7 +395,7 @@ function Import-ExcelSched
                     # Checking for outliers and creating Support Instructor event
                     $Eventht.role       = "Support"
                     $Eventht.Instructor = $SupportInstructor
-                    if ($SupportInstructor -like "*Evaluator*" -or $SupportInstructor -like "DOM*") {
+                    if ($SupportInstructor -like "*Evaluator*" -or $SupportInstructor -like "DOM*" -or $SupportInstructor -like "CCV*") {
                         CONTINUE 
                     } # if
                     New-SchedEvent @Eventht # Return object from function
@@ -579,8 +579,9 @@ Select-Object -ExpandProperty FullName
 TestingImport -filepath $files | 
     Export-csv -Path "C:\Users\micha\Documents\OutputData\events.csv" -Force
 
+[datetime[]]$holidays = Get-Content -Path C:\Users\micha\Documents\InputData\Holidays.txt | Get-Date
 [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
-$report = Measure-Events -events $events
+$report = Measure-Events -events $events -holidays $holidays
 $report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force
 
 
