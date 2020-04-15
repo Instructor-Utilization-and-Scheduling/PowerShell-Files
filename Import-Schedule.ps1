@@ -116,31 +116,37 @@ function New-SchedEvent
             path   = '.\Schedules\CVAH\CVAH 20-04.xlsx'
             course = "CVAH"
             class  = "20-04"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv" 
         },
         [PSCustomObject]@{
             path   = '.\Schedules\CVAH\CVAH 20-05.xlsx'
             course = "CVAH"
             class  = "20-05"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv" 
         },
         [PSCustomObject]@{
             path   = '.\Schedules\CVAH\CVAH 20-06.xlsx'
             course = "CVAH"
             class  = "20-06"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv" 
         },
         [PSCustomObject]@{
             path   = '.\Schedules\CVAH\CVAH 20-08.xlsx'
             course = "CVAH"
             class  = "20-08"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv" 
         },
         [PSCustomObject]@{
             path   = '.\Schedules\CWO\CWO 20-06 Schedule.xlsx'
             course = "CWO"
             class  = "20-06"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv" 
         },
         [PSCustomObject]@{
             path   = '.\Schedules\CWO\CWO 20-08 Schedule.xlsx'
             course = "CWO"
             class  = "20-08"
+            AliasFile = "C:\Users\micha\Documents\InputData\NameAliases.csv" 
         }
      )
     $schedules | Import-ExcelSched
@@ -327,20 +333,21 @@ function Import-ExcelSched
                 $Eventht.class      = $class
                 $Eventht.course     = $Course
                 $Eventht.Role       = "Primary"
-                $Eventht.Instructor = ($objWorksheet.Cells.Cells($row, 8).Text).Trim()
-
-                # Checking if schedule used an alias name, if so converting to real name
-                If ($Eventht.Instructor -in ($alias).alias){
-                    $Eventht.Instructor = $alias | 
-                        Where-Object {$_.alias -eq $Eventht.Instructor} | 
-                            Select-Object -ExpandProperty Name
-                } # if alias
-
-                # Checking for empty instructor value, if so skipping otherwise, creating an event.
-                If ($Eventht.Instructor -ne "") {
-                    New-SchedEvent @Eventht
+                
+                $Primary = @(($objWorksheet.Cells.Cells($row, 8).Text -split "[/]|[,]").Trim())
+                foreach ($Instructor in $Primary) {
+                    if ($Instructor -eq "" -or $Instructor -eq " ") { CONTINUE }
+                    $Eventht.Instructor = $Instructor
+                    # Checking if schedule used an alias name, if so converting to real name
+                    If ($Instructor -in ($alias).alias){
+                        $Eventht.Instructor = $alias | 
+                            Where-Object {$_.alias -eq $Eventht.Instructor} | 
+                                Select-Object -ExpandProperty Name
+                    } # if alias                    
+                    New-SchedEvent @Eventht # Return event object
                     $EventsCreated++
-                } # if empty primary instructor
+
+                } # foreach Primary Instructor
 
                 # Working on Secondary instructor. We'll hold off on creating the event until we know the instructor
                 # is not also in the support role.
@@ -353,11 +360,11 @@ function Import-ExcelSched
                 } # if alias
                 
                 # Getting a list of all the support instructors
-                $MIR = @($objWorksheet.Cells.Cells($Row,12).Text -split "[,]|[\n]").trim() | 
+                $MIR = @($objWorksheet.Cells.Cells($Row,12).Text -split "[,]|[\n]|[/]").trim() | 
                             Where-Object {$_ -ne ""}
                 
                 # if the Secondary is not also a support instructor, creating an event for Secondary
-                If ($Secondary -notin $MIR -and $Secondary -ne "") {
+                If ($Secondary -notin $MIR -and $Secondary -ne "" -and $Secondary -ne "ISSO") {
                     $Eventht.role       = "Secondary"
                     $Eventht.instructor = $Secondary
                     New-SchedEvent @Eventht # Return object from function
@@ -384,7 +391,7 @@ function Import-ExcelSched
                     # Checking for outliers and creating Support Instructor event
                     $Eventht.role       = "Support"
                     $Eventht.Instructor = $SupportInstructor
-                    if ($SupportInstructor -like "Evaluator*" -or $SupportInstructor -like "DOM*") {
+                    if ($SupportInstructor -like "*Evaluator*" -or $SupportInstructor -like "DOM*") {
                         CONTINUE 
                     } # if
                     New-SchedEvent @Eventht # Return object from function
@@ -429,7 +436,15 @@ function Import-ExcelSched
     } # End
 } # function Import-ExcelSched
 
-
+<#
+.Synopsis
+    This function takes an array of InstructorEvent objects and creates a report.
+.DESCRIPTION
+    Long description
+.EXAMPLE
+    [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
+    $report = Measure-Events -events $events
+#>
 function Measure-Events 
 {
     [CmdletBinding()]
@@ -526,7 +541,6 @@ function Measure-Events
     } # Process
 } # function Measure-Events
 
-
 function TestingImport 
 {
     [CmdletBinding()]
@@ -549,17 +563,23 @@ function TestingImport
 
 } # function TestingImport
 
+
+<# Testing
 $files = @(Get-ChildItem -Path "C:\Users\micha\Documents\InputData\Schedules\CWO" |
                 Select-Object -ExpandProperty FullName
 ) # $files array
 
-$events = TestingImport -filepath $files
-$events | Export-csv -Path "C:\Users\micha\Documents\OutputData\events.csv" -Force
+$files += @(Get-ChildItem -Path "C:\Users\micha\Documents\InputData\Schedules\CVAH" |
+Select-Object -ExpandProperty FullName
+) 
+TestingImport -filepath $files | 
+    Export-csv -Path "C:\Users\micha\Documents\OutputData\events.csv" -Force
+
+[InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
+$report = Measure-Events -events $events
+$report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force #>
 
 
 
-    [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
-    $report = Measure-Events -events $events
-    $report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force
 
 
