@@ -4,6 +4,7 @@ class InstructorEvent
    [string]   $Instructor
    [datetime] $start
    [datetime] $end
+   [datetime] $AsOf
    [string]   $course
    [string]   $class
    [string]   $lesson
@@ -54,6 +55,7 @@ class InstructorEvent
    InstructorEvent ([string]   $Instructor, 
           [datetime] $start,
           [datetime] $end,
+          [datetime] $AsOf,
           [string]   $class,
           [string]   $course,
           [string]   $room,
@@ -66,6 +68,7 @@ class InstructorEvent
        $this.Instructor = $Instructor
        $this.start      = $start
        $this.end        = $end
+       $this.AsOf       = $AsOf
        $this.class      = $class
        $this.course     = $course
        $this.room       = $room
@@ -81,7 +84,7 @@ class InstructorEvent
 
    } #Constructor Definition
 
-   #Empty Constructor
+   #Empty Constructor for automation
    InstructorEvent()
    {$this.Instructor = ""}
 } #Class Defition
@@ -93,13 +96,14 @@ function New-SchedEvent
         [string]   $Instructor, 
         [datetime] $start,
         [datetime] $end,
+        [datetime] $AsOf,
         [string]   $class,
         [string]   $course,
         [string]   $room,
         [string]   $lesson,
         [string]   $role          
           ) # param
-    [InstructorEvent]::new($Instructor, $start, $end, $class, $course, $room, $lesson, $role)
+    [InstructorEvent]::new($Instructor, $start, $end, $AsOf, $class, $course, $room, $lesson, $role)
     
 } #function New-SchedEvent
 
@@ -185,7 +189,7 @@ function Import-ExcelSched
         # Date the schedule was publised.
         [Parameter(ValueFromPipelineByPropertyName=$true)]
         [datetime]
-        $AsOfDate
+        $AsOfDate = (Get-Date)
     ) # Param
 
     Begin
@@ -313,6 +317,7 @@ function Import-ExcelSched
                 
                 # Creating hashtable for splatting New-SchedEvent function.
                 $Eventht = @{}
+                $Eventht.AsOf = $AsOfDate
 
                 # Getting the start and end time of the event.
                 $startHour, $startMin = $objWorksheet.Cells.Cells($row, 2).Text -split ":"
@@ -346,7 +351,6 @@ function Import-ExcelSched
                     } # if alias                    
                     New-SchedEvent @Eventht # Return event object
                     $EventsCreated++
-
                 } # foreach Primary Instructor
 
                 # Working on Secondary instructor. We'll hold off on creating the event until we know the instructor
@@ -564,7 +568,7 @@ function TestingImport
 } # function TestingImport
 
 
-<# Testing
+#Testing
 $files = @(Get-ChildItem -Path "C:\Users\micha\Documents\InputData\Schedules\CWO" |
                 Select-Object -ExpandProperty FullName
 ) # $files array
@@ -577,7 +581,7 @@ TestingImport -filepath $files |
 
 [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
 $report = Measure-Events -events $events
-$report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force #>
+$report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force
 
 
 
