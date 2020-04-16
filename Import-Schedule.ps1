@@ -187,6 +187,7 @@ function Import-ExcelSched
         $AliasFile,
 
         # Date the schedule was publised.
+        #Make this mandatory
         [Parameter(ValueFromPipelineByPropertyName=$true)]
         [datetime]
         $AsOfDate = (Get-Date)
@@ -206,12 +207,7 @@ function Import-ExcelSched
 
     Process
     {        
-        # Creating hashtable that will be used for splatting the Write-Progress command throughout.
-        $Status = @{
-            Activity         = "Importing Schedule $Path"
-            CurrentOperation = "Creating Excel Objects"
-            PercentComplete  = -1
-        } # Status hashtable definition
+
 
         "`nResults from importing {0}:" -f $Path  |
             Out-File -FilePath $ResultsFile -Append
@@ -233,7 +229,13 @@ function Import-ExcelSched
             Write-Error -Category ObjectNotFound -Message "$Path does not exist!"
             Return $null
         } #if Test-Path
-
+        
+        # Creating hashtable that will be used for splatting the Write-Progress command throughout.
+        $Status = @{
+            Activity         = "Importing Schedule $Path"
+            CurrentOperation = "Creating Excel Objects"
+            PercentComplete  = -1
+        } # Status hashtable definition
         # Update progress bar
         Write-Progress @Status
 
@@ -456,80 +458,117 @@ function Measure-Events
         [Parameter(Mandatory=$true)]
         [InstructorEvent[]]$events,
 
-        [ValidateSet("CYWeek","FYWeek")]
+        [ValidateSet("Monthly","Quarterly")]
         [string]
-        $WkGrouping = "FYWeek",
+        $Grouping,
+
+        [switch]
+        $QuarterlyGrouping,
 
         [double]
         $UtilizationRate = .37,
 
-        [datetime[]]
-        $holidays
+        [int]
+        $AnnualCapacity = 1752
+
     ) # param block
 
     Process {
-        $TotalWeeks = ($events | 
-            Sort-Object -Property $WkGrouping -Unique |
-                Measure-Object).count
 
-        $startdate = ($events | 
+        [datetime]$firsteventdate = $events | 
             Sort-Object -Property start -Unique | 
-                Select-Object -First 1 -ExpandProperty start).ToString("d-MMM-yyyy")
+                Select-Object -First 1 -ExpandProperty start
 
-        $enddate = ($events | 
+        [datetime]$lasteventdate = $events | 
             Sort-Object -Property start -Unique | 
-                Select-Object -Last 1 -ExpandProperty start).ToString("d-MMM-yyyy")
+                Select-Object -Last 1 -ExpandProperty start
         
-        $TotalCapacity = 0
+        switch ($Grouping) {
+            "Monthly"   {
+                $events | Add-Member -MemberType ScriptProperty -Name "Grouping" -Value {$this.start.ToString("MMM-yyyy")}
+                $ReportStart = Get-Date -Year $firsteventdate.Year -Month $firsteventdate.Month -Day 1
+                $ReportEnd   = Get-Date -Year $lasteventdate.Year  -Month $lasteventdate.Month  -Day 1
+                $ReportEnd   = $ReportEnd.AddMonths(1).AddDays(-1)
+              } # Monthly Grouping
+            "Quarterly" {
+                $events | Add-Member -MemberType ScriptProperty -Name "Grouping" -Value {
+                                "{0}-Q{1}" -f ($this.start.year), ([math]::Ceiling($this.start.month / 3))}              
+                $ReportStart = Get-Date -Year $firsteventdate.Year -Month ([math]::ceiling($firsteventdate.Month / 3) * 3 - 2) -Day 1
+                $ReportEnd   = Get-Date -Year $lasteventdate.Year  -Month ([math]::ceiling($lasteventdate.Month / 3) * 3 - 2)  -Day 1
+                $ReportEnd   = $ReportEnd.AddMonths(3).AddDays(-1)
+            } # Quarterly Grouping
+        } #switch
 
-        "Report Covering {0} - {1}" -f $startdate, $enddate
+        "Report Covering {0:d} - {1:d}" -f $ReportStart, $ReportEnd
         "`nClasses Loaded: {0}" -f (($events |
                                         Sort-Object -Property "course", "class" -Unique |
                                             Select-Object -Property @{n="classstring";e={"{0}-{1}" -f $_.course, $_.class}} |
                                                 Select-Object -ExpandProperty classstring) -join ", ")
-        "Utilization Rate Used for Calculations: {0:P2}" -f $UtilizationRate
-        "`nWeekly Summary:"
+        "`nClassroom Utilization Rate Used for Calculations: {0:P0}" -f $UtilizationRate
+        "Annual Capacity: {0:N0} hours" -f $AnnualCapacity
+        "Annual Classroom Utilization: {0:N0} hours" -f ($AnnualCapacity*$UtilizationRate)
+        "`n{0}Summary:" -f $Grouping
         "-" * 100
+        $totaldays = ($ReportEnd - $ReportStart).TotalDays + 1
+        $totalutilization = $TotalCapacity * $UtilizationRate
+        $DailyCapacity = $AnnualCapacity / 365
+        $TotalCapacity = $totaldays * $DailyCapacity
 
-        foreach ($wk in ($events | Sort-Object -Property $WkGrouping -Unique | Select-Object -ExpandProperty $WkGrouping)) {
-            $fullwk = ($wk -split "/")[1].trim()
-            [datetime]$startwk, [datetime]$endwk = $fullwk -split " - " 
-            $WeeklyCapacity = 40
-            foreach ($holiday in $holidays) {
-                if ($holiday -ge $startwk -and $holiday -le $endwk) {
-                    $WeeklyCapacity -= 8
-                } # if holiday in week
-            } # foreach holiday
-            $TotalCapacity += $WeeklyCapacity
-            "{0}`tCapacity = {1} hours`t100% Utilization = {2} hours" -f $wk, $WeeklyCapacity, ($WeeklyCapacity * $UtilizationRate)
-            $events | 
-                Where-Object {$_.$WkGrouping -eq $wk} |
-                    Group-Object -Property Instructor |
-                        Sort-Object -Property @{e={($_.Group | Measure-Object -Sum duration).sum}} -Descending |
-                        Format-Table -AutoSize -Property @{n="Instructor";e={$_.Name}},
-                            @{n="Primary_Hours"
-                                e={[double]($_.Group | Where-Object Role -eq "Primary" | Measure-Object -Sum duration).sum}
-                                f="N2"},
-                            @{n="Secondary_Hours"
-                                e={[double]($_.Group | Where-Object Role -eq "Secondary" | Measure-Object -Sum duration).sum}
-                                f="N2"},
-                            @{n="Support_Hours"
-                                e={[double]($_.Group | Where-Object Role -eq "Support" | Measure-Object -Sum duration).sum}
-                                f="N2"},
-                            @{n="Secondary/Support_Hours"
-                                e={[double]($_.Group | Where-Object Role -eq "Secondary/Support" | Measure-Object -Sum duration).sum}
-                                f="N2"},
-                            @{n="Total_Hours"
-                                e={[double]($_.Group | Measure-Object -Sum duration).sum}
-                                f="N2"},
-                            @{n="Utilization"
-                                e={[double]($_.Group | Measure-Object -Sum duration).sum / ($WeeklyCapacity * $UtilizationRate)}
-                                f="P2"}
-        } #foreach week
+        foreach ($gp in ($events | 
+                    Sort-Object -Property start |
+                        Select-Object -ExpandProperty Grouping -Unique)) {
+            $GroupEvents = $events | 
+                                Where-Object {$_.Grouping -eq $gp}
 
-        "Totals {0} - {1}:" -f $startdate, $enddate
-        "Capacity = {0} hours`t100% Utilization = {1} hours" -f $TotalCapacity, ($TotalCapacity * $UtilizationRate)
-        "-" * 100
+            $firstgroupdate = $GroupEvents | 
+                    Sort-Object -Property start | 
+                        Select-Object -ExpandProperty start -First 1
+
+            switch ($Grouping) {
+                "Monthly"   { 
+                    $startgroupdate = Get-Date -Year $firstgroupdate.Year -Month $firstgroupdate.Month -Day 1
+                    $endgroupdate   = $startgroupdate.AddMonths(1).AddDays(-1)
+                } # Monthly Grouping
+                "Quarterly" {
+                    $startgroupdate = Get-Date -Year $firstgroupdate.Year -Month ([math]::ceiling($firstgroupdate.Month / 3) * 3 - 2) -Day 1
+                    $endgroupdate   = $startgroupdate.AddMonths(3).AddDays(-1)
+                } # Quarterly Grouping
+            } # Switch
+           
+            $totaldays  = ($endgroupdate - $startgroupdate).TotalDays + 1
+            $GpCapacity = $totaldays * $DailyCapacity
+            $CRUtilization = $GpCapacity * $UtilizationRate
+            "{0}" -f $gp
+            "Days: {0:N0}`tCapacity: {1:N2} hours`tClassroom Utilization: {2:N2} hours" -f $totaldays, $GpCapacity, $CRUtilization
+            $GroupEvents |
+                Group-Object -Property Instructor |
+                    Sort-Object -Property @{e={($_.Group | Measure-Object -Sum duration).sum}} -Descending |
+                    Format-Table -AutoSize -Property @{n="Instructor";e={$_.Name}},
+                        @{n="Primary_Hours"
+                            e={[double]($_.Group | Where-Object Role -eq "Primary" | Measure-Object -Sum duration).sum}
+                            f="N2"},
+                        @{n="Secondary_Hours"
+                            e={[double]($_.Group | Where-Object Role -eq "Secondary" | Measure-Object -Sum duration).sum}
+                            f="N2"},
+                        @{n="Support_Hours"
+                            e={[double]($_.Group | Where-Object Role -eq "Support" | Measure-Object -Sum duration).sum}
+                            f="N2"},
+                        @{n="Secondary/Support_Hours"
+                            e={[double]($_.Group | Where-Object Role -eq "Secondary/Support" | Measure-Object -Sum duration).sum}
+                            f="N2"},
+                        @{n="Total_Hours"
+                            e={[double]($_.Group | Measure-Object -Sum duration).sum}
+                            f="N2"},
+                        @{n="CR Utilization Rate"
+                            e={[double]($_.Group | Measure-Object -Sum duration).sum / ($GpCapacity * $UtilizationRate)}
+                            f="P2"},
+                        @{n="Capacity Rate"
+                            e={[double]($_.Group | Measure-Object -Sum duration).sum / ($GpCapacity)}
+                            f="P2"}
+        } #foreach Group
+
+        "`nReport Rollup {0:d} - {1:d}" -f $ReportStart, $ReportEnd
+        "Total Days: {0:N0}`tTotal Capacity: {1:N2} hours`tClassroom Utilization Hours: {2:N2}" -f $totaldays, $TotalCapacity, $totalutilization
         $events |
             Sort-Object -Property Instructor |
                 Group-Object -Property Instructor |
@@ -550,8 +589,11 @@ function Measure-Events
                                             @{n="Total_Hours"
                                                 e={[double]($_.Group | Measure-Object -Sum duration).sum}
                                                 f="N2"},
-                                            @{n="Utilization"
-                                                e={[double]($_.Group | Measure-Object -Sum duration).sum / (($TotalWeeks * 40) * $UtilizationRate)}
+                                            @{n="CR Utilization Rate"
+                                                e={[double]($_.Group | Measure-Object -Sum duration).sum / ($TotalCapacity * $UtilizationRate)}
+                                                f="P2"}, 
+                                            @{n="Capacity Rate"
+                                                e={[double]($_.Group | Measure-Object -Sum duration).sum / ($TotalCapacity)}
                                                 f="P2"} 
 
     } # Process
@@ -591,10 +633,12 @@ Select-Object -ExpandProperty FullName
 TestingImport -filepath $files | 
     Export-csv -Path "C:\Users\micha\Documents\OutputData\events.csv" -Force
 
-[datetime[]]$holidays = Get-Content -Path C:\Users\micha\Documents\InputData\Holidays.txt | Get-Date
 [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
-$report = Measure-Events -events $events -holidays $holidays
-$report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Analysis.txt -Force #>
+$report = Measure-Events -events $events -Grouping "Quarterly"
+$report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Quarterly_Analysis.txt -Force
+[InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
+$report = Measure-Events -events $events -grouping "Monthly"
+$report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Monthly_Analysis.txt -Force #>
 
 
 
