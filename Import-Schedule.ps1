@@ -510,9 +510,9 @@ function Measure-Events
         "`n{0}Summary:" -f $Grouping
         "-" * 100
         $totaldays = ($ReportEnd - $ReportStart).TotalDays + 1
-        $totalutilization = $TotalCapacity * $UtilizationRate
         $DailyCapacity = $AnnualCapacity / 365
         $TotalCapacity = $totaldays * $DailyCapacity
+        $totalutilization = $TotalCapacity * $UtilizationRate
 
         foreach ($gp in ($events | 
                     Sort-Object -Property start |
@@ -535,11 +535,11 @@ function Measure-Events
                 } # Quarterly Grouping
             } # Switch
            
-            $totaldays  = ($endgroupdate - $startgroupdate).TotalDays + 1
+            $gpdays  = ($endgroupdate - $startgroupdate).TotalDays + 1
             $GpCapacity = $totaldays * $DailyCapacity
             $CRUtilization = $GpCapacity * $UtilizationRate
             "{0}" -f $gp
-            "Days: {0:N0}`tCapacity: {1:N2} hours`tClassroom Utilization: {2:N2} hours" -f $totaldays, $GpCapacity, $CRUtilization
+            "Days: {0:N0}`tCapacity: {1:N2} hours`tClassroom Utilization: {2:N2} hours" -f $gpdays, $GpCapacity, $CRUtilization
             $GroupEvents |
                 Group-Object -Property Instructor |
                     Sort-Object -Property @{e={($_.Group | Measure-Object -Sum duration).sum}} -Descending |
