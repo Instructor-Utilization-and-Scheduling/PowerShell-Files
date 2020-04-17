@@ -455,19 +455,21 @@ function Measure-Events
 {
     [CmdletBinding()]
     param (
+        # array of events to report on. Filter the events as needed prior to calling.
         [Parameter(Mandatory=$true)]
         [InstructorEvent[]]$events,
 
+        # Set how to group the summary
+        [Parameter(Mandatory=$true)]
         [ValidateSet("Monthly","Quarterly")]
         [string]
         $Grouping,
 
-        [switch]
-        $QuarterlyGrouping,
-
+        # Rate that instructors should be utilized in the classroom.
         [double]
         $UtilizationRate = .37,
 
+        # Total hours available to work per year.
         [int]
         $AnnualCapacity = 1752
 
@@ -475,17 +477,21 @@ function Measure-Events
 
     Process {
 
+        # Finding the earliest event in the array
         [datetime]$firsteventdate = $events | 
             Sort-Object -Property start -Unique | 
                 Select-Object -First 1 -ExpandProperty start
 
+        # Finding the last event in the array
         [datetime]$lasteventdate = $events | 
             Sort-Object -Property start -Unique | 
                 Select-Object -Last 1 -ExpandProperty start
         
+        # Setting the events per the grouping.
         switch ($Grouping) {
             "Monthly"   {
                 $events | Add-Member -MemberType ScriptProperty -Name "Grouping" -Value {$this.start.ToString("MMM-yyyy")}
+                # Need to start the report at the beginning of the month and end at the end of the month
                 $ReportStart = Get-Date -Year $firsteventdate.Year -Month $firsteventdate.Month -Day 1
                 $ReportEnd   = Get-Date -Year $lasteventdate.Year  -Month $lasteventdate.Month  -Day 1
                 $ReportEnd   = $ReportEnd.AddMonths(1).AddDays(-1)
@@ -493,12 +499,14 @@ function Measure-Events
             "Quarterly" {
                 $events | Add-Member -MemberType ScriptProperty -Name "Grouping" -Value {
                                 "{0}-Q{1}" -f ($this.start.year), ([math]::Ceiling($this.start.month / 3))}              
+                # Need to start the report at the beginning of the quarter and end at the end of the quarter
                 $ReportStart = Get-Date -Year $firsteventdate.Year -Month ([math]::ceiling($firsteventdate.Month / 3) * 3 - 2) -Day 1
                 $ReportEnd   = Get-Date -Year $lasteventdate.Year  -Month ([math]::ceiling($lasteventdate.Month / 3) * 3 - 2)  -Day 1
                 $ReportEnd   = $ReportEnd.AddMonths(3).AddDays(-1)
             } # Quarterly Grouping
         } #switch
 
+        # Writing report header information
         "Report Covering {0:d} - {1:d}" -f $ReportStart, $ReportEnd
         "`nClasses Loaded: {0}" -f (($events |
                                         Sort-Object -Property "course", "class" -Unique |
@@ -509,11 +517,13 @@ function Measure-Events
         "Annual Classroom Utilization: {0:N0} hours" -f ($AnnualCapacity*$UtilizationRate)
         "`n{0}Summary:" -f $Grouping
         "-" * 100
+        # Calculating report totals
         $totaldays = ($ReportEnd - $ReportStart).TotalDays + 1
         $DailyCapacity = $AnnualCapacity / 365
         $TotalCapacity = $totaldays * $DailyCapacity
         $totalutilization = $TotalCapacity * $UtilizationRate
 
+        # Looping the group summary
         foreach ($gp in ($events | 
                     Sort-Object -Property start |
                         Select-Object -ExpandProperty Grouping -Unique)) {
@@ -526,15 +536,18 @@ function Measure-Events
 
             switch ($Grouping) {
                 "Monthly"   { 
+                    # Need to start at the beginning of the month and end at the end of the month
                     $startgroupdate = Get-Date -Year $firstgroupdate.Year -Month $firstgroupdate.Month -Day 1
                     $endgroupdate   = $startgroupdate.AddMonths(1).AddDays(-1)
                 } # Monthly Grouping
                 "Quarterly" {
+                    # Need to start at the beginning of the quarter and end at the end of the quarter
                     $startgroupdate = Get-Date -Year $firstgroupdate.Year -Month ([math]::ceiling($firstgroupdate.Month / 3) * 3 - 2) -Day 1
                     $endgroupdate   = $startgroupdate.AddMonths(3).AddDays(-1)
                 } # Quarterly Grouping
             } # Switch
            
+            # Calculating group totals
             $gpdays  = ($endgroupdate - $startgroupdate).TotalDays + 1
             $GpCapacity = $totaldays * $DailyCapacity
             $CRUtilization = $GpCapacity * $UtilizationRate
@@ -567,6 +580,7 @@ function Measure-Events
                             f="P2"}
         } #foreach Group
 
+        # Final total rollup
         "`nReport Rollup {0:d} - {1:d}" -f $ReportStart, $ReportEnd
         "Total Days: {0:N0}`tTotal Capacity: {1:N2} hours`tClassroom Utilization Hours: {2:N2}" -f $totaldays, $TotalCapacity, $totalutilization
         $events |
