@@ -613,17 +613,38 @@ function Measure-Events
     } # Process
 } # function Measure-Events
 
+function Remove-OutlookEvent {
+    [CmdletBinding()]
+    param (
+        
+    )
+    
+    begin {
+        
+    }
+    
+    process {
+        
+    }
+    
+    end {
+        
+    }
+}
+
 function New-OutlookEvent {
     [CmdletBinding()]
     param (
 
-        # Calendar to use of "New" to create a new calendar
+        # Full path of calendar folder to use or <new> to create a new calendar
         [Parameter(Mandatory=$true)]
         [string]
-        $CalendarName,
+        $CalendarFolder,
 
         # Instructor Event to use for outlook calendar event
-        [Parameter(Mandatory=$true, ParameterSetName="Instructor Event")]
+        [Parameter(Mandatory=$true, 
+                    ParameterSetName="Instructor Event",
+                    ValueFromPipeline=$true) ]
         [InstructorEvent]
         $InstructorEvent,
 
@@ -643,30 +664,80 @@ function New-OutlookEvent {
         $end,
 
         # Reminder in minutes
-        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
         [int]
-        $reminder,
+        $reminder = 15,
 
         # Body of event
         [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
-        [datetime]
-        $body        
+        [string]
+        $body,
+
+        # Location of event
+        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
+        [string]
+        $location,
+
+        # Category of event
+        [Parameter(ParameterSetName="Regular Event")]
+        [string]
+        $Category       
     )
     
     begin {
         # Create Outlook objects
-        
+        if (Get-Process -name Outlook){$OutlookRunning = $true}
+        try {
+            Add-Type -AssemblyName "Microsoft.Office.Interop.Outlook" | Out-Null
+            $olFolders = "Microsoft.Office.Interop.Outlook.olDefaultFolders" -as [type]
+            $olItems   = "Microsoft.Office.Interop.Outlook.olItemType" -as [type]
+            $olClose   = "Microsoft.Office.Interop.Outlook.olInspectorClose" -as [type]
+            $outlook = New-Object -ComObject Outlook.application
+            $namespace = $outlook.GetNameSpace("MAPI")
+            $DefaultCalFolder = $namespace.GetDefaultFolder($olFolders::olFolderCalendar)
+            $Calendars = @($DefaultCalFolder.folders) + $DefaultCalFolder                        
+        }
+        catch {
+            Write-Error "Unable to create outlook objects"
+            return 0
+        }        
     }
     
     process {
-        # Set values for instructor event
 
+        if ($CalendarFolder -eq "<new>") {
+            #create calendar and add to array of calendars
+        }
+        $Calendar = $Calendars | Where-Object {$_.fullfolderpath -eq $CalendarFolder}
+        if (!$Calendar) { write-error "Unable to Find $CalendarFolder"; return 0 }
+
+        # Set values for instructor event
+        if ($InstructorEvent) {
+            $Subject = "{0} / {1} / {2} / {3} [Current_As_Of: {4}]" -f $InstructorEvent.course,
+                                                                             $InstructorEvent.class,
+                                                                             $InstructorEvent.lesson,
+                                                                             $InstructorEvent.Role,
+                                                                             $InstructorEvent.AsOf
+            $Location = $InstructorEvent.room
+            $start    = $InstructorEvent.start
+            $end      = $InstructorEvent.end
+            $body     = "{0}`nEvent created using PowerShell script." -f $InstructorEvent.Role
+            $category = $InstructorEvent.Role
+        }
         # Create outlook schedule event object
-        
+
+        $appt = $Calendar.items.add($olItems::olAppointmentItem) #
+        $appt.start      = $start
+        $appt.end        = $end
+        $appt.Subject    = $Subject
+        $appt.Location   = $location
+        $appt.categories = $category
+        $appt.body       = $body
+        $appt.close($olClose::olSave)       
     }
     
     end {
         # close / destroy objects
+        if (!$OutlookRunning){ $outlook.quit() }        
     }
 }
 
@@ -709,7 +780,29 @@ $report = Measure-Events -events $events -Grouping "Quarterly"
 $report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Quarterly_Analysis.txt -Force
 [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
 $report = Measure-Events -events $events -grouping "Monthly"
-$report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Monthly_Analysis.txt -Force #>
+$report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Monthly_Analysis.txt -Force 
+
+#>
+#testing outlook
+$ht = @{
+    CalendarFolder = "\\michael.ralph72@gmail.com\Calendar (This computer only)\WorkGroup1 (This computer only)"
+    Start          = Get-Date
+    End            = (Get-Date).AddHours(2)
+    Subject        = "Test Subject"
+    Location       = "My Office"
+    Category       = "Test basic"
+    Body           = "This was a test"
+}
+
+New-OutlookEvent @ht
+
+# Testing Instructor Events
+$events = [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv |
+    Where-Object {$_.Instructor -eq "Mr. Ralph" -and $_.start -ge (Get-Date "1 Jan 2020")}
+
+$events | New-OutlookEvent -calendarfolder "\\michael.ralph72@gmail.com\Calendar (This computer only)\WorkGroup1 (This computer only)"
+
+
 
 
 
