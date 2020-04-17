@@ -806,10 +806,10 @@ $ht = @{
 New-OutlookEvent @ht
 
 # Testing Instructor Events
-$events = [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv |
-    Where-Object {$_.Instructor -eq "Mr. Ralph" -and $_.start -ge (Get-Date "1 Jan 2020")}
-
-$events | New-OutlookEvent -calendarfolder "\\michael.ralph72@gmail.com\Calendar (This computer only)\WorkGroup1 (This computer only)"
+[InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
+$events | 
+    Where-Object {$_.Instructor -eq "Mr. Ralph" -and $_.start -ge (Get-Date "1 Jan 2020")} |
+        New-OutlookEvent -calendarfolder "\\michael.ralph72@gmail.com\Calendar (This computer only)\WorkGroup1 (This computer only)"
 
 
 
