@@ -684,16 +684,24 @@ function New-OutlookEvent {
     )
     
     begin {
-        # Create Outlook objects
+        # Determin if outlook was running prior to the function call. If not we'll close the application when done.
         if (Get-Process -name Outlook){$OutlookRunning = $true}
         try {
+            # Adds the Outlook interop assembly
             Add-Type -AssemblyName "Microsoft.Office.Interop.Outlook" | Out-Null
+            # The next 3 lines adds types for enumeration. This makes the code more readable.
+            # For example without this you would need to understand all the enumeration values
+            # for the different types like olAppointmentitem = 1...
             $olFolders = "Microsoft.Office.Interop.Outlook.olDefaultFolders" -as [type]
             $olItems   = "Microsoft.Office.Interop.Outlook.olItemType" -as [type]
             $olClose   = "Microsoft.Office.Interop.Outlook.olInspectorClose" -as [type]
+            # Create the outlook application object
             $outlook = New-Object -ComObject Outlook.application
+            # We need this namespace to enumerate the outlook calendar folders
             $namespace = $outlook.GetNameSpace("MAPI")
+            # Gets the default calendar folders (root level)
             $DefaultCalFolder = $namespace.GetDefaultFolder($olFolders::olFolderCalendar)
+            # Gets all the folders underneath the default calendar folder
             $Calendars = @($DefaultCalFolder.folders) + $DefaultCalFolder                        
         }
         catch {
@@ -707,7 +715,9 @@ function New-OutlookEvent {
         if ($CalendarFolder -eq "<new>") {
             #create calendar and add to array of calendars
         }
+        # Get the Calendar object associated with the CalendarFolder parameter
         $Calendar = $Calendars | Where-Object {$_.fullfolderpath -eq $CalendarFolder}
+        # Check to make sure the CalendarFolder is valid
         if (!$Calendar) { write-error "Unable to Find $CalendarFolder"; return 0 }
 
         # Set values for instructor event
@@ -724,8 +734,7 @@ function New-OutlookEvent {
             $category = $InstructorEvent.Role
         }
         # Create outlook schedule event object
-
-        $appt = $Calendar.items.add($olItems::olAppointmentItem) #
+        $appt = $Calendar.items.add($olItems::olAppointmentItem) 
         $appt.start      = $start
         $appt.end        = $end
         $appt.Subject    = $Subject
@@ -736,7 +745,7 @@ function New-OutlookEvent {
     }
     
     end {
-        # close / destroy objects
+        # If Outlook was not running prior to the function call, quit the application
         if (!$OutlookRunning){ $outlook.quit() }        
     }
 }
