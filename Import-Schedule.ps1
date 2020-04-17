@@ -613,6 +613,63 @@ function Measure-Events
     } # Process
 } # function Measure-Events
 
+function New-OutlookEvent {
+    [CmdletBinding()]
+    param (
+
+        # Calendar to use of "New" to create a new calendar
+        [Parameter(Mandatory=$true)]
+        [string]
+        $CalendarName,
+
+        # Instructor Event to use for outlook calendar event
+        [Parameter(Mandatory=$true, ParameterSetName="Instructor Event")]
+        [InstructorEvent]
+        $InstructorEvent,
+
+        # Subject
+        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
+        [string]
+        $Subject,
+
+        # Start
+        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
+        [datetime]
+        $start,
+
+        # End
+        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
+        [datetime]
+        $end,
+
+        # Reminder in minutes
+        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
+        [int]
+        $reminder,
+
+        # Body of event
+        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
+        [datetime]
+        $body        
+    )
+    
+    begin {
+        # Create Outlook objects
+        
+    }
+    
+    process {
+        # Set values for instructor event
+
+        # Create outlook schedule event object
+        
+    }
+    
+    end {
+        # close / destroy objects
+    }
+}
+
 function TestingImport 
 {
     [CmdletBinding()]
