@@ -636,7 +636,7 @@ function New-OutlookEvent {
     [CmdletBinding()]
     param (
 
-        # Full path of calendar folder to use or <new> to create a new calendar
+        # Full path of calendar folder to use. If doesn't exist, it will create it under the default folder.
         [Parameter(Mandatory=$true)]
         [string]
         $CalendarFolder,
@@ -687,39 +687,54 @@ function New-OutlookEvent {
         # Determin if outlook was running prior to the function call. If not we'll close the application when done.
         if (Get-Process -name Outlook){$OutlookRunning = $true}
         try {
-            # Adds the Outlook interop assembly
-            Add-Type -AssemblyName "Microsoft.Office.Interop.Outlook" | Out-Null
-            # The next 3 lines adds types for enumeration. This makes the code more readable.
-            # For example without this you would need to understand all the enumeration values
-            # for the different types like olAppointmentitem = 1...
-            $olFolders = "Microsoft.Office.Interop.Outlook.olDefaultFolders" -as [type]
-            $olItems   = "Microsoft.Office.Interop.Outlook.olItemType" -as [type]
-            $olClose   = "Microsoft.Office.Interop.Outlook.olInspectorClose" -as [type]
             # Create the outlook application object
-            $outlook = New-Object -ComObject Outlook.application
-            # We need this namespace to enumerate the outlook calendar folders
-            $namespace = $outlook.GetNameSpace("MAPI")
-            # Gets the default calendar folders (root level)
-            $DefaultCalFolder = $namespace.GetDefaultFolder($olFolders::olFolderCalendar)
-            # Gets all the folders underneath the default calendar folder
-            $Calendars = @($DefaultCalFolder.folders) + $DefaultCalFolder                        
+            $outlook = New-Object -ComObject Outlook.application                    
         }
         catch {
             Write-Error "Unable to create outlook objects"
             return 0
-        }        
-    }
-    
-    process {
-
-        if ($CalendarFolder -eq "<new>") {
-            #create calendar and add to array of calendars
-        }
+        }     
+        # Adds the Outlook interop assembly
+        Add-Type -AssemblyName "Microsoft.Office.Interop.Outlook" | Out-Null
+       
+        # The next 3 lines adds types for enumeration. This makes the code more readable.
+        # For example without this you would need to understand all the enumeration values
+        # for the different types like olAppointmentitem = 1...
+        $olFolders = "Microsoft.Office.Interop.Outlook.olDefaultFolders" -as [type]
+        $olItems   = "Microsoft.Office.Interop.Outlook.olItemType" -as [type]
+        $olClose   = "Microsoft.Office.Interop.Outlook.olInspectorClose" -as [type] 
+        $olColors  = "Microsoft.Office.Interop.Outlook.olCategoryColor" -as [type]  
+        
+        # We need this namespace to enumerate the outlook calendar folders
+        $namespace = $outlook.GetNameSpace("MAPI")
+        # Gets the default calendar folders
+        $DefaultCalFolder = $namespace.GetDefaultFolder($olFolders::olFolderCalendar)
+        # Gets all the folders underneath the default calendar folder
+        $Calendars = @($DefaultCalFolder.folders) + $DefaultCalFolder  
         # Get the Calendar object associated with the CalendarFolder parameter
         $Calendar = $Calendars | Where-Object {$_.fullfolderpath -eq $CalendarFolder}
-        # Check to make sure the CalendarFolder is valid
-        if (!$Calendar) { write-error "Unable to Find $CalendarFolder"; return 0 }
-
+        # If the calendar doesn't exist, create it.
+        if (!$Calendar) { 
+            #create calendar and add to array of calendars
+            $Calendar = $DefaultCalFolder.folders.Add($CalendarFolder, $olFolders::olFolderCalendar)
+        }
+        # Get the categories already loaded
+        $categories = $namespace.categories | Select-Object -ExpandProperty Name
+        # Create categories if needed
+        if ($categories -notcontains "Primary") {
+            $namespace.categories.Add("Primary", $olColors::olCategoryColorRed) | Out-Null
+        }
+        if ($categories -notcontains "Secondary") {
+            $namespace.categories.Add("Secondary", $olColors::olCategoryColorYellow) | Out-Null
+        }
+        if ($categories -notcontains "Secondary/Support") {
+            $namespace.categories.Add("Secondary/Support", $olColors::olCategoryColorDarkYellow) | Out-Null
+        }
+        if ($categories -notcontains "Support") {
+            $namespace.categories.Add("Support", $olColors::olCategoryColorGreen) | Out-Null
+        }
+    } #Begin
+    process {
         # Set values for instructor event
         if ($InstructorEvent) {
             $Subject = "{0} / {1} / {2} / {3} [Current_As_Of: {4}]" -f $InstructorEvent.course,
@@ -742,8 +757,7 @@ function New-OutlookEvent {
         $appt.categories = $category
         $appt.body       = $body
         $appt.close($olClose::olSave)       
-    }
-    
+    }    
     end {
         # If Outlook was not running prior to the function call, quit the application
         if (!$OutlookRunning){ $outlook.quit() }        
@@ -792,7 +806,7 @@ $report = Measure-Events -events $events -grouping "Monthly"
 $report | Out-File -FilePath C:\Users\micha\Documents\OutputData\Monthly_Analysis.txt -Force 
 
 #>
-#testing outlook
+<# #testing outlook
 $ht = @{
     CalendarFolder = "\\michael.ralph72@gmail.com\Calendar (This computer only)\WorkGroup1 (This computer only)"
     Start          = Get-Date
@@ -809,7 +823,7 @@ New-OutlookEvent @ht
 [InstructorEvent[]]$events = Import-Csv -Path C:\Users\micha\Documents\OutputData\events.csv
 $events | 
     Where-Object {$_.Instructor -eq "Mr. Ralph" -and $_.start -ge (Get-Date "1 Jan 2020")} |
-        New-OutlookEvent -calendarfolder "\\michael.ralph72@gmail.com\Calendar (This computer only)\WorkGroup1 (This computer only)"
+        New-OutlookEvent -calendarfolder "New_Calendar2" #>
 
 
 
