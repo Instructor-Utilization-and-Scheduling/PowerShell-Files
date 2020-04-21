@@ -582,7 +582,7 @@ function Measure-Events
            
             # Calculating group totals
             $gpdays  = ($endgroupdate - $startgroupdate).TotalDays + 1
-            $GpCapacity = $totaldays * $DailyCapacity
+            $GpCapacity = $gpdays * $DailyCapacity
             $CRUtilization = $GpCapacity * $UtilizationRate
             "{0}" -f $gp
             "Days: {0:N0}`tCapacity: {1:N2} hours`tClassroom Utilization: {2:N2} hours" -f $gpdays, $GpCapacity, $CRUtilization

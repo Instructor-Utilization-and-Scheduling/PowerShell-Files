@@ -32,7 +32,7 @@ $OutputPath = "C:\Users\micha\Documents\OutputData"
 $CalendarFolder = "\\michael.ralph72@gmail.com\Calendar (This computer only)\WorkGroup1 (This computer only)"
 
 # Import Testing
-$files = @(Get-ChildItem -Path "$InputPath\Schedules" -Filter -Recurse |
+$files = @(Get-ChildItem -Path "$InputPath\Schedules" -File -Recurse |
                 Select-Object -ExpandProperty FullName
 )
 TestingImport -filepath $files -InputPath $InputPath | 
@@ -43,7 +43,7 @@ TestingImport -filepath $files -InputPath $InputPath |
 $report = Measure-Events -InstructorEvents $events -Grouping "Quarterly"
 $report | Out-File -FilePath "$OutputPath\Quarterly_Analysis.txt" -Force
 [InstructorEvent[]]$events = Import-Csv -Path "$OutputPath\events.csv"
-$report = Measure-Events -events $events -grouping "Monthly"
+$report = Measure-Events -Instructorevents $events -grouping "Monthly"
 $report | Out-File -FilePath "$OutputPath\Monthly_Analysis.txt" -Force 
 
 #testing outlook
