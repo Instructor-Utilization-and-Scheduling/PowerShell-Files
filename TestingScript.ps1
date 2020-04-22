@@ -40,10 +40,13 @@ TestingImport -filepath $files -InputPath $InputPath |
 
 # Testing Report
 [InstructorEvent[]]$events = Import-Csv -Path "$OutputPath\events.csv"
-$report = Measure-Events -InstructorEvents $events -Grouping "Quarterly"
+$DODIntructors = Import-Csv -Path "$InputPath\Config\whitelist.csv" |
+    Where-Object {$_.DOD -eq "T"} |
+        Select-Object -ExpandProperty Name
+$DODEvents = $events | Where-Object {$_.Instructor -in $DODIntructors}
+$report = Measure-Events -InstructorEvents $DODEvents -Grouping "Quarterly"
 $report | Out-File -FilePath "$OutputPath\Quarterly_Analysis.txt" -Force
-[InstructorEvent[]]$events = Import-Csv -Path "$OutputPath\events.csv"
-$report = Measure-Events -Instructorevents $events -grouping "Monthly"
+$report = Measure-Events -Instructorevents $DODEvents -grouping "Monthly"
 $report | Out-File -FilePath "$OutputPath\Monthly_Analysis.txt" -Force 
 
 #testing outlook
