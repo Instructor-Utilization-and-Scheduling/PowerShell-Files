@@ -1,14 +1,55 @@
+
+
 # Including what will be our module....
 . (Join-Path $PSScriptRoot 'InstructorUtilizationModule.ps1')
 
 Add-Type -AssemblyName System.Windows.Forms
+[System.Windows.Forms.Application]::EnableVisualStyles()
+
+$ViewEventGrid = {
+    $UpdateFiltered.Invoke()    
+    $script:FilteredEvents | Out-GridView
+}
+
+$QuarterlyReport = {
+    $ButtonQuarterlyReport.Text = "Working...."
+    $ButtonQuarterlyReport.Enabled = $false
+    $UpdateFiltered.Invoke()
+    $TempFile = Join-Path -Path $env:TEMP -ChildPath ("Utilization_Report_" + (Get-Date).ToString("dfff") + ".txt")
+    $ht = @{
+        InstructorEvents = $script:FilteredEvents
+        Grouping         = "Quarterly"
+        InstructorsAvailable = $NumericUpDownInstAvail.Value
+    }
+    Measure-Events @ht |
+        Out-File -FilePath $TempFile
+    Invoke-Item -Path $TempFile
+    $ButtonQuarterlyReport.Text = "Quarterly Rollup"
+    $ButtonQuarterlyReport.Enabled = $true
+}
+$MonthlyReport = {
+    $ButtonMonthlyReport.Text = "Working...."
+    $ButtonMonthlyReport.Enabled = $false
+    $UpdateFiltered.Invoke()
+    $TempFile = Join-Path -Path $env:TEMP -ChildPath ("Utilization_Report_" + (Get-Date).ToString("dfff") + ".txt")
+    $ht = @{
+        InstructorEvents = $script:FilteredEvents
+        Grouping         = "Monthly"
+        InstructorsAvailable = $NumericUpDownInstAvail.Value
+    }
+    Measure-Events @ht |
+        Out-File -FilePath $TempFile
+    Invoke-Item -Path $TempFile
+    $ButtonMonthlyReport.Text = "Monthly Rollup"
+    $ButtonMonthlyReport.Enabled = $true
+}
 
 $UpdateFiltered = {
     $SelectedInstructors = @(foreach ($row in $DataGridViewInstructors.SelectedRows) {
         $row.cells[0].value
     })
     if ($ComboBoxClassFilter.SelectedItem -and $ComboBoxCourseFilter.SelectedItem) {            
-        $FilteredEvents = @($AllEvents | 
+        $script:FilteredEvents = @($AllEvents | 
             Where-Object {$_.Instructor -in $SelectedInstructors -and $_.start -ge $DateTimePickerStartFilter.Value -and $_.end -le $DateTimePickerEndFilter.Value -and $_.Course -like $ComboBoxCourseFilter.SelectedItem.ToString() -and $_.Class -like $ComboBoxClassFilter.SelectedItem.ToString()})
         $LabelFilteredEvents.Text = "Filtered Events: {0:N0}" -f $FilteredEvents.count
     } # if
@@ -28,6 +69,7 @@ $Config = Get-Content -Path (Join-Path -Path $PSScriptRoot 'config.cfg')
 
 # Loading Data
 [InstructorEvent[]]$AllEvents = @(Import-Csv -Path (Join-Path -Path $Config 'events.csv'))
+[InstructorEvent[]]$FilteredEvents = $AllEvents
 $Instructors = @(Import-Csv -Path (Join-Path -Path $Config "whitelist.csv"))
 $ClassesLoaded = @($AllEvents | 
     Sort-Object -Property Course, Class, Asof -Unique |

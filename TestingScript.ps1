@@ -17,8 +17,8 @@ function TestingImport
                 path = $file
                 course = (-split $FileObj.Name)[0]
                 class  = (-split $FileObj.Name)[1]
-                AliasFile = "$InputPath\NameAliases.csv" 
-                InstructorWhiteList = @(Get-Content "$InputPath\whitelist.txt")             
+                AliasFile = "$InputPath\Config\NameAliases.csv" 
+                InstructorWhiteList = @(Import-Csv "$InputPath\Config\whitelist.csv" | Select-Object -ExpandProperty Name)             
             } # pscustomobject        
         } # foreach file
     ) # schedules array
@@ -37,7 +37,7 @@ $files = @(Get-ChildItem -Path "$InputPath\Schedules" -File -Recurse |
 )
 TestingImport -filepath $files -InputPath $InputPath | 
     Export-csv -Path "$OutputPath\events.csv" -Force
-
+<# 
 # Testing Report
 [InstructorEvent[]]$events = Import-Csv -Path "$OutputPath\events.csv"
 $DODIntructors = Import-Csv -Path "$InputPath\Config\whitelist.csv" |
@@ -74,3 +74,4 @@ $events |
 $events | 
     Where-Object {$_.Instructor -eq "Mr. Ralph" -and $_.start -ge (Get-Date "1 Jan 2020")} | 
         Remove-OutlookEvent -CalendarFolder "\\michael.ralph72@gmail.com\Calendar (This computer only)\WorkGroup1 (This computer only)"
+ #>
