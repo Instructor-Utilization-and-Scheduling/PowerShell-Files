@@ -739,26 +739,34 @@ function Export-ICS
     } # End
 } # Function export-ics
 
-function Remove-OutlookEvent 
+function Remove-OutlookAppointment
 {
     [CmdletBinding()]
     param (
-        # Full path of calendar folder to use. If doesn't exist, it will create it under the default folder.
-        [Parameter(Mandatory=$true)]
-        [string]
-        $CalendarFolder,
+        [Parameter(Mandatory=$false,ValueFromPipeline=$false)]
+        [Microsoft.Office.Interop.Outlook.NameSpaceClass]
+        $OutlookSession,
+
+        [Parameter(Mandatory=$true,ValueFromPipeline=$false)]
+        $OutlookCalendar,
 
         # Instructor Event to use for outlook calendar event
         [Parameter(Mandatory=$true, 
                     ParameterSetName="Instructor Event",
                     ValueFromPipeline=$true) ]
         [InstructorEvent]
-        $InstructorEvent        
+        $InstructorEvent,
+        
+        [Parameter(Mandatory=$true,
+                    ParameterSetName="SearchTitle",
+                    ValueFromPipeline=$true)]
+        [string]
+        $Search
     )
     
     begin {
         # Determine if outlook was running prior to the function call. If not we'll close the application when done.
-        if (Get-Process -name Outlook -ErrorAction SilentlyContinue){$OutlookRunning = $true}
+        if ((Get-Process -name Outlook -ErrorAction SilentlyContinue) -and !($OutlookSession)){$OutlookRunning = $true}
         try {
             # Create the outlook application object
             $outlook = New-Object -ComObject Outlook.application                    
@@ -769,35 +777,23 @@ function Remove-OutlookEvent
         }     
         # Adds the Outlook interop assembly
         Add-Type -AssemblyName "Microsoft.Office.Interop.Outlook" | Out-Null
-       
-        # The next line adds a type for enumeration. This makes the code more readable.
-        # For example without this you would need to understand all the enumeration values
-        # for the different types like olAppointmentitem = 1...
-        $olFolders = "Microsoft.Office.Interop.Outlook.olDefaultFolders" -as [type]
-        
+              
         # We need this namespace to enumerate the outlook calendar folders
-        $namespace = $outlook.GetNameSpace("MAPI")
-        # Gets the default calendar folders
-        $DefaultCalFolder = $namespace.GetDefaultFolder($olFolders::olFolderCalendar)
-        # Gets all the folders underneath the default calendar folder
-        $Calendars = @($DefaultCalFolder.folders) + $DefaultCalFolder  
-        # Get the Calendar object associated with the CalendarFolder parameter
-        $Calendar = $Calendars | Where-Object {$_.fullfolderpath -eq $CalendarFolder}
-        # If the calendar doesn't exist, return error
-        if (!$Calendar) { 
-            Write-Error "Can't find Outlook calendar"
-            return $null
-        }      
+        $OutlookSession = $outlook.GetNameSpace("MAPI")
+
         $NumOfDeletedItems = 0
     }    
     process {
-        $Subject = "{0} / {1} / {2} / {3} [Current_As_Of: {4}]" -f $InstructorEvent.course,
-                                                                    $InstructorEvent.class,
-                                                                    $InstructorEvent.lesson,
-                                                                    $InstructorEvent.Role,
-                                                                    $InstructorEvent.AsOf.ToString("d")
-        $Calendar.items |
-            Where-Object {$_.Subject -eq $Subject} |
+        if ($InstructorEvent) {
+            $Search = "{0} / {1} / {2} / {3} [Current_As_Of: {4}]" -f $InstructorEvent.course,
+            $InstructorEvent.class,
+            $InstructorEvent.lesson,
+            $InstructorEvent.Role,
+            $InstructorEvent.AsOf.ToString("d")
+        } #if
+
+        $OutlookCalendar.items |
+            Where-Object {$_.Subject -like $Search} |
                 ForEach-Object {$_.Delete();$NumOfDeletedItems++}
     }    
     end {
@@ -809,6 +805,85 @@ function Remove-OutlookEvent
     }
 } # function remove-outlookevent
 
+function Get-OutlookAppointments
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false,ValueFromPipeline=$false)]
+        [Microsoft.Office.Interop.Outlook.NameSpaceClass]
+        $OutlookSession,
+
+        [Parameter(Mandatory=$true,ValueFromPipeline=$false)]
+        $OutlookCalendar
+    )
+    # Determine if outlook was running prior to the function call. If not we'll close the application when done.
+    if ((Get-Process -name Outlook -ErrorAction SilentlyContinue) -and !($OutlookSession)){$OutlookRunning = $true}
+    if (!$OutlookSession){
+        try {
+            # Create the outlook application object
+            $outlook = New-Object -ComObject Outlook.application                    
+        }
+        catch {
+            Write-Error "Unable to create outlook objects"
+            return 0
+        }     
+        # Adds the Outlook interop assembly
+        Add-Type -AssemblyName "Microsoft.Office.Interop.Outlook" | Out-Null
+                    
+        # We need this namespace to enumerate the outlook calendar folders
+        $OutlookSession = $outlook.GetNameSpace("MAPI")
+    } # if OutlookSession not provided
+    $OutlookCalendar.items
+    
+    if (!$OutlookRunning){ $outlook.quit() }  
+} # function Get-OutlookAppointments
+
+function Get-OutlookCalendars
+{
+    [CmdletBinding()]
+    param (
+        # Parameter help description
+        [Parameter(Mandatory=$false,ValueFromPipeline=$false)]
+        [Microsoft.Office.Interop.Outlook.NameSpaceClass]
+        $OutlookSession
+    )
+
+    Process {
+        # Determine if outlook was running prior to the function call. If not we'll close the application when done.
+        if ((Get-Process -name Outlook -ErrorAction SilentlyContinue) -and !($OutlookSession)){$OutlookRunning = $true}
+        if (!$OutlookSession){
+            try {
+                # Create the outlook application object
+                $outlook = New-Object -ComObject Outlook.application                    
+            }
+            catch {
+                Write-Error "Unable to create outlook objects"
+                return 0
+            }     
+            # Adds the Outlook interop assembly
+            Add-Type -AssemblyName "Microsoft.Office.Interop.Outlook" | Out-Null
+                      
+            # We need this namespace to enumerate the outlook calendar folders
+            $OutlookSession = $outlook.GetNameSpace("MAPI")
+        } # if OutlookSession not provided
+        
+        # Gets the root calendar folders
+        $Folders = @($OutlookSession.Folders | ForEach-Object {$_})
+        $i = 0
+        while ($i -lt $Folders.Count) {
+            if ($Folders[$i].folders) {
+                $Folders += ($Folders[$i].folders)
+            }
+            $i++
+        }
+        $Folders | 
+            Where-Object {$_.defaultmessageclass -eq "IPM.Appointment"}
+
+        # If Outlook was not running prior to the function call, quit the application
+        if (!$OutlookRunning){ $outlook.quit() } 
+    } # Process    
+} # function Get-OutlookCalendars
+
 function New-OutlookEvent 
 {
     [CmdletBinding()]
@@ -819,44 +894,43 @@ function New-OutlookEvent
         [string]
         $CalendarFolder,
 
-        # Instructor Event to use for outlook calendar event
-        [Parameter(Mandatory=$true, 
-                    ParameterSetName="Instructor Event",
-                    ValueFromPipeline=$true) ]
-        [InstructorEvent]
-        $InstructorEvent,
-
         # Subject
-        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
+        [Parameter(Mandatory=$true, 
+                    ValueFromPipelineByPropertyName=$true)]
         [string]
         $Subject,
 
         # Start
-        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
+        [Parameter(Mandatory=$true, 
+            ValueFromPipelineByPropertyName=$true)]
         [datetime]
         $start,
 
         # End
-        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
+        [Parameter(Mandatory=$true, 
+            ValueFromPipelineByPropertyName=$true)]
         [datetime]
         $end,
 
         # Reminder in minutes
+        [Parameter(ValueFromPipelineByPropertyName=$true)]
         [int]
         $reminder = 15,
 
         # Body of event
-        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
+        [Parameter(Mandatory=$true, 
+            ValueFromPipelineByPropertyName=$true )]
         [string]
         $body,
 
         # Location of event
-        [Parameter(Mandatory=$true, ParameterSetName="Regular Event")]
+        [Parameter(Mandatory=$true, 
+            ValueFromPipelineByPropertyName=$true)]
         [string]
         $location,
 
         # Category of event
-        [Parameter(ParameterSetName="Regular Event")]
+        [Parameter(ValueFromPipelineByPropertyName=$true)]
         [string]
         $Category       
     )
@@ -875,26 +949,24 @@ function New-OutlookEvent
         # Adds the Outlook interop assembly
         Add-Type -AssemblyName "Microsoft.Office.Interop.Outlook" | Out-Null
        
-        # The next 4 lines adds types for enumeration. This makes the code more readable.
+        # The next 3 lines adds types for enumeration. This makes the code more readable.
         # For example without this you would need to understand all the enumeration values
         # for the different types like olAppointmentitem = 1...
-        $olFolders = "Microsoft.Office.Interop.Outlook.olDefaultFolders" -as [type]
         $olItems   = "Microsoft.Office.Interop.Outlook.olItemType" -as [type]
         $olClose   = "Microsoft.Office.Interop.Outlook.olInspectorClose" -as [type] 
         $olColors  = "Microsoft.Office.Interop.Outlook.olCategoryColor" -as [type]  
         
         # We need this namespace to enumerate the outlook calendar folders
         $namespace = $outlook.GetNameSpace("MAPI")
-        # Gets the default calendar folders
-        $DefaultCalFolder = $namespace.GetDefaultFolder($olFolders::olFolderCalendar)
-        # Gets all the folders underneath the default calendar folder
-        $Calendars = @($DefaultCalFolder.folders) + $DefaultCalFolder  
+
+        # Gets all the outlook calendar folders
+        $Calendars = @(Get-OutlookCalendars -OutlookSession $namespace)
         # Get the Calendar object associated with the CalendarFolder parameter
-        $Calendar = $Calendars | Where-Object {$_.fullfolderpath -eq $CalendarFolder}
-        # If the calendar doesn't exist, create it.
+        $Calendar = $Calendars | 
+            Where-Object {$_.fullfolderpath -eq $CalendarFolder}
+        # If the calendar doesn't exist, throw error.
         if (!$Calendar) { 
-            #create calendar and add to array of calendars
-            $Calendar = $DefaultCalFolder.folders.Add($CalendarFolder, $olFolders::olFolderCalendar)
+            throw "Outlook Calendar does not exist"
         }
         # Get the categories already loaded
         $categories = $namespace.categories | Select-Object -ExpandProperty Name
@@ -911,12 +983,14 @@ function New-OutlookEvent
         if ($categories -notcontains "Support") {
             $namespace.categories.Add("Support", $olColors::olCategoryColorGreen) | Out-Null
         }
-
+        if ($categories -notcontains "Instruction") {
+            $namespace.categories.Add("Instruction", $olColors::olCategoryColorBlue) | Out-Null
+        }
         $TotalEventsCreated = 0
     } #Begin
     process {
         # Set values for instructor event
-        if ($InstructorEvent) {
+<#         if ($InstructorEvent) {
             $Subject = "{0} / {1} / {2} / {3} [Current_As_Of: {4}]" -f $InstructorEvent.course,
                                                                              $InstructorEvent.class,
                                                                              $InstructorEvent.lesson,
@@ -927,7 +1001,7 @@ function New-OutlookEvent
             $end      = $InstructorEvent.end
             $body     = "{0}`nEvent created using PowerShell script." -f $InstructorEvent.Role
             $category = $InstructorEvent.Role
-        }
+        } #>
         # Create outlook schedule event object
         $appt = $Calendar.items.add($olItems::olAppointmentItem) 
         $appt.start      = $start
