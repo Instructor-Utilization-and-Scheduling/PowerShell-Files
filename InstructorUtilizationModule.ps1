@@ -744,7 +744,6 @@ function Remove-OutlookAppointment
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,ValueFromPipeline=$false)]
-        [Microsoft.Office.Interop.Outlook.NameSpaceClass]
         $OutlookSession,
 
         [Parameter(Mandatory=$true,ValueFromPipeline=$false)]
@@ -810,7 +809,6 @@ function Get-OutlookAppointments
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,ValueFromPipeline=$false)]
-        [Microsoft.Office.Interop.Outlook.NameSpaceClass]
         $OutlookSession,
 
         [Parameter(Mandatory=$true,ValueFromPipeline=$false)]
@@ -844,7 +842,6 @@ function Get-OutlookCalendars
     param (
         # Parameter help description
         [Parameter(Mandatory=$false,ValueFromPipeline=$false)]
-        [Microsoft.Office.Interop.Outlook.NameSpaceClass]
         $OutlookSession
     )
 
@@ -877,7 +874,8 @@ function Get-OutlookCalendars
             $i++
         }
         $Folders | 
-            Where-Object {$_.defaultmessageclass -eq "IPM.Appointment"}
+            Where-Object {$_.defaultmessageclass -eq "IPM.Appointment" -and $_.parent.fullfolderpath -notlike "*\Trash"}
+    
 
         # If Outlook was not running prior to the function call, quit the application
         if (!$OutlookRunning){ $outlook.quit() } 
@@ -926,6 +924,7 @@ function New-OutlookEvent
         # Location of event
         [Parameter(Mandatory=$true, 
             ValueFromPipelineByPropertyName=$true)]
+        [AllowEmptyString()]
         [string]
         $location,
 

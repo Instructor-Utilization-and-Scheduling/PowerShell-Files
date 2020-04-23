@@ -4,7 +4,7 @@
 . (Join-Path $PSScriptRoot 'InstructorUtilizationModule.ps1')
 
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.Application]::EnableVisualStyles()
+. (Join-Path $PSScriptRoot 'MainScript.designer.ps1')
 
 $ViewEventGrid = {
     $UpdateFiltered.Invoke()    
@@ -43,7 +43,10 @@ $MonthlyReport = {
     $ButtonMonthlyReport.Text = "Monthly Rollup"
     $ButtonMonthlyReport.Enabled = $true
 }
+$ImportSched = {
+    #open new form.
 
+}
 $UpdateFiltered = {
     $SelectedInstructors = @(foreach ($row in $DataGridViewInstructors.SelectedRows) {
         $row.cells[0].value
@@ -54,6 +57,9 @@ $UpdateFiltered = {
         $LabelFilteredEvents.Text = "Filtered Events: {0:N0}" -f $FilteredEvents.count
     } # if
 } # UpdateFiltered
+$OpenOutlookForm = {
+    . (Join-Path $PSScriptRoot 'OutlookForm.ps1')
+}
 
 $InstrUtilizationLoaded = {
     $ComboBoxCourseFilter.SelectedItem = "*"

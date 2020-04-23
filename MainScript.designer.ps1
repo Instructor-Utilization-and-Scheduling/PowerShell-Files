@@ -50,22 +50,22 @@ $DateTimePickerEndFilter = (New-Object -TypeName System.Windows.Forms.DateTimePi
 $DateTimePickerStartFilter = (New-Object -TypeName System.Windows.Forms.DateTimePicker)
 $LabelInstructorFilter = (New-Object -TypeName System.Windows.Forms.Label)
 $GroupBoxReports = (New-Object -TypeName System.Windows.Forms.GroupBox)
+$LabelInstAvail = (New-Object -TypeName System.Windows.Forms.Label)
+$NumericUpDownInstAvail = (New-Object -TypeName System.Windows.Forms.NumericUpDown)
 $ButtonMonthlyReport = (New-Object -TypeName System.Windows.Forms.Button)
 $ButtonQuarterlyReport = (New-Object -TypeName System.Windows.Forms.Button)
 $GroupBoxSchedEvents = (New-Object -TypeName System.Windows.Forms.GroupBox)
 $ButtoniCalSched = (New-Object -TypeName System.Windows.Forms.Button)
 $ButtonOutlookSched = (New-Object -TypeName System.Windows.Forms.Button)
 $PictureBox1 = (New-Object -TypeName System.Windows.Forms.PictureBox)
-$NumericUpDownInstAvail = (New-Object -TypeName System.Windows.Forms.NumericUpDown)
-$LabelInstAvail = (New-Object -TypeName System.Windows.Forms.Label)
 $GroupBoxClassesLoaded.SuspendLayout()
 ([System.ComponentModel.ISupportInitialize]$DataGridViewClassesLoaded).BeginInit()
 $GroupBoxFilters.SuspendLayout()
 ([System.ComponentModel.ISupportInitialize]$DataGridViewInstructors).BeginInit()
 $GroupBoxReports.SuspendLayout()
+([System.ComponentModel.ISupportInitialize]$NumericUpDownInstAvail).BeginInit()
 $GroupBoxSchedEvents.SuspendLayout()
 ([System.ComponentModel.ISupportInitialize]$PictureBox1).BeginInit()
-([System.ComponentModel.ISupportInitialize]$NumericUpDownInstAvail).BeginInit()
 $FormInstructorUtilization.SuspendLayout()
 #
 #GroupBoxClassesLoaded
@@ -138,6 +138,7 @@ $ButtonImportSched.TabIndex = [System.Int32]1
 $ButtonImportSched.Text = [System.String]'New / Update Class Schedule'
 $ButtonImportSched.UseCompatibleTextRendering = $true
 $ButtonImportSched.UseVisualStyleBackColor = $true
+$ButtonImportSched.add_Click($ImportSched)
 #
 #GroupBoxFilters
 #
@@ -302,6 +303,26 @@ $GroupBoxReports.TabStop = $false
 $GroupBoxReports.Text = [System.String]'Reports'
 $GroupBoxReports.UseCompatibleTextRendering = $true
 #
+#LabelInstAvail
+#
+$LabelInstAvail.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]24,[System.Int32]20))
+$LabelInstAvail.Name = [System.String]'LabelInstAvail'
+$LabelInstAvail.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]207,[System.Int32]23))
+$LabelInstAvail.TabIndex = [System.Int32]3
+$LabelInstAvail.Text = [System.String]'Instructors Available'
+$LabelInstAvail.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
+$LabelInstAvail.UseCompatibleTextRendering = $true
+#
+#NumericUpDownInstAvail
+#
+$NumericUpDownInstAvail.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]238,[System.Int32]20))
+$NumericUpDownInstAvail.Minimum = (New-Object -TypeName System.Decimal -ArgumentList @(,[System.Int32[]]@([System.Int32]2,[System.Int32]0,[System.Int32]0,[System.Int32]0)))
+$NumericUpDownInstAvail.Name = [System.String]'NumericUpDownInstAvail'
+$NumericUpDownInstAvail.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]63,[System.Int32]21))
+$NumericUpDownInstAvail.TabIndex = [System.Int32]2
+$NumericUpDownInstAvail.UpDownAlign = [System.Windows.Forms.LeftRightAlignment]::Left
+$NumericUpDownInstAvail.Value = (New-Object -TypeName System.Decimal -ArgumentList @(,[System.Int32[]]@([System.Int32]22,[System.Int32]0,[System.Int32]0,[System.Int32]0)))
+#
 #ButtonMonthlyReport
 #
 $ButtonMonthlyReport.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]218,[System.Int32]53))
@@ -356,6 +377,7 @@ $ButtonOutlookSched.TabIndex = [System.Int32]0
 $ButtonOutlookSched.Text = [System.String]'Create Outlook Schedule'
 $ButtonOutlookSched.UseCompatibleTextRendering = $true
 $ButtonOutlookSched.UseVisualStyleBackColor = $true
+$ButtonOutlookSched.add_Click($OpenOutlookForm)
 #
 #PictureBox1
 #
@@ -366,26 +388,6 @@ $PictureBox1.Name = [System.String]'PictureBox1'
 $PictureBox1.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]100,[System.Int32]50))
 $PictureBox1.TabIndex = [System.Int32]2
 $PictureBox1.TabStop = $false
-#
-#NumericUpDownInstAvail
-#
-$NumericUpDownInstAvail.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]238,[System.Int32]20))
-$NumericUpDownInstAvail.Minimum = (New-Object -TypeName System.Decimal -ArgumentList @(,[System.Int32[]]@([System.Int32]2,[System.Int32]0,[System.Int32]0,[System.Int32]0)))
-$NumericUpDownInstAvail.Name = [System.String]'NumericUpDownInstAvail'
-$NumericUpDownInstAvail.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]63,[System.Int32]21))
-$NumericUpDownInstAvail.TabIndex = [System.Int32]2
-$NumericUpDownInstAvail.UpDownAlign = [System.Windows.Forms.LeftRightAlignment]::Left
-$NumericUpDownInstAvail.Value = (New-Object -TypeName System.Decimal -ArgumentList @(,[System.Int32[]]@([System.Int32]22,[System.Int32]0,[System.Int32]0,[System.Int32]0)))
-#
-#LabelInstAvail
-#
-$LabelInstAvail.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]102,[System.Int32]20))
-$LabelInstAvail.Name = [System.String]'LabelInstAvail'
-$LabelInstAvail.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]129,[System.Int32]23))
-$LabelInstAvail.TabIndex = [System.Int32]3
-$LabelInstAvail.Text = [System.String]'Instructors Available'
-$LabelInstAvail.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
-$LabelInstAvail.UseCompatibleTextRendering = $true
 #
 #FormInstructorUtilization
 #
@@ -404,9 +406,9 @@ $GroupBoxClassesLoaded.ResumeLayout($false)
 $GroupBoxFilters.ResumeLayout($false)
 ([System.ComponentModel.ISupportInitialize]$DataGridViewInstructors).EndInit()
 $GroupBoxReports.ResumeLayout($false)
+([System.ComponentModel.ISupportInitialize]$NumericUpDownInstAvail).EndInit()
 $GroupBoxSchedEvents.ResumeLayout($false)
 ([System.ComponentModel.ISupportInitialize]$PictureBox1).EndInit()
-([System.ComponentModel.ISupportInitialize]$NumericUpDownInstAvail).EndInit()
 $FormInstructorUtilization.ResumeLayout($false)
 Add-Member -InputObject $FormInstructorUtilization -Name base -Value $base -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name GroupBoxClassesLoaded -Value $GroupBoxClassesLoaded -MemberType NoteProperty
