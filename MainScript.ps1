@@ -45,20 +45,26 @@ $MonthlyReport = {
 }
 $ImportSched = {
     #open new form.
-
+    
 }
 $UpdateFiltered = {
     $SelectedInstructors = @(foreach ($row in $DataGridViewInstructors.SelectedRows) {
         $row.cells[0].value
     })
     if ($ComboBoxClassFilter.SelectedItem -and $ComboBoxCourseFilter.SelectedItem) {            
-        $script:FilteredEvents = @($AllEvents | 
+        [InstructorEvent[]]$script:FilteredEvents = @($AllEvents | 
             Where-Object {$_.Instructor -in $SelectedInstructors -and $_.start -ge $DateTimePickerStartFilter.Value -and $_.end -le $DateTimePickerEndFilter.Value -and $_.Course -like $ComboBoxCourseFilter.SelectedItem.ToString() -and $_.Class -like $ComboBoxClassFilter.SelectedItem.ToString()})
-        $LabelFilteredEvents.Text = "Filtered Events: {0:N0}" -f $FilteredEvents.count
+        #$LabelFilteredEvents.Text = "Filtered Events: {0:N0}" -f $FilteredEvents.count
     } # if
 } # UpdateFiltered
 $OpenOutlookForm = {
+    $defaultText = $ButtonOutlookSched.text
+    $ButtonOutlookSched.text = "Working..."
+    $ButtonOutlookSched.Enabled = $false
+    $UpdateFiltered.Invoke()
     . (Join-Path $PSScriptRoot 'OutlookForm.ps1')
+    $ButtonOutlookSched.text = $defaultText
+    $ButtonOutlookSched.Enabled = $true
 }
 
 $InstrUtilizationLoaded = {
@@ -72,6 +78,18 @@ $InstrUtilizationLoaded = {
 
 # Getting Configuration Information
 $Config = Get-Content -Path (Join-Path -Path $PSScriptRoot 'config.cfg')
+$requiredfiles = "events.csv","NameAliases.csv","whitelist.csv"
+$requiredfiles | 
+    ForEach-Object {
+        if (!(Test-Path -Path "$Config\$_")) {
+            $msg = "Can't find required config files in $Config"
+            $msg += "`nUpdate config.cfg with the appropriate path and ensure the following files are present:`n"
+            $msg += $requiredfiles -join "`n"
+            $caption = "Error"
+            [System.Windows.Forms.MessageBox]::Show($msg, $caption, 0, 16)
+            throw $msg
+        }
+    }
 
 # Loading Data
 [InstructorEvent[]]$AllEvents = @(Import-Csv -Path (Join-Path -Path $Config 'events.csv'))
@@ -98,7 +116,7 @@ $TotalEvents = ($AllEvents).count
 # Setting up main form with initial data
 #Checking if user has write privieges to data source file
 try {
-    [io.file]::OpenWrite((Join-Path -Path $Config "events.csv")).close()
+    [system.io.file]::OpenWrite((Join-Path -Path $Config "events.csv")).close()
 }
 catch {
     $ButtonRemoveClassSched.Enabled = $false

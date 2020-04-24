@@ -26,10 +26,8 @@ $FormInstructorUtilization = New-Object -TypeName System.Windows.Forms.Form
 [System.Windows.Forms.GroupBox]$GroupBoxSchedEvents = $null
 [System.Windows.Forms.Button]$ButtoniCalSched = $null
 [System.Windows.Forms.Button]$ButtonOutlookSched = $null
-[System.Windows.Forms.PictureBox]$PictureBox1 = $null
 function InitializeComponent
 {
-$resources = . (Join-Path $PSScriptRoot 'MainScript.resources.ps1')
 $GroupBoxClassesLoaded = (New-Object -TypeName System.Windows.Forms.GroupBox)
 $DataGridViewClassesLoaded = (New-Object -TypeName System.Windows.Forms.DataGridView)
 $LabelTotalEvents = (New-Object -TypeName System.Windows.Forms.Label)
@@ -57,7 +55,6 @@ $ButtonQuarterlyReport = (New-Object -TypeName System.Windows.Forms.Button)
 $GroupBoxSchedEvents = (New-Object -TypeName System.Windows.Forms.GroupBox)
 $ButtoniCalSched = (New-Object -TypeName System.Windows.Forms.Button)
 $ButtonOutlookSched = (New-Object -TypeName System.Windows.Forms.Button)
-$PictureBox1 = (New-Object -TypeName System.Windows.Forms.PictureBox)
 $GroupBoxClassesLoaded.SuspendLayout()
 ([System.ComponentModel.ISupportInitialize]$DataGridViewClassesLoaded).BeginInit()
 $GroupBoxFilters.SuspendLayout()
@@ -65,7 +62,6 @@ $GroupBoxFilters.SuspendLayout()
 $GroupBoxReports.SuspendLayout()
 ([System.ComponentModel.ISupportInitialize]$NumericUpDownInstAvail).BeginInit()
 $GroupBoxSchedEvents.SuspendLayout()
-([System.ComponentModel.ISupportInitialize]$PictureBox1).BeginInit()
 $FormInstructorUtilization.SuspendLayout()
 #
 #GroupBoxClassesLoaded
@@ -185,7 +181,6 @@ $DataGridViewInstructors.Name = [System.String]'DataGridViewInstructors'
 $DataGridViewInstructors.SelectionMode = [System.Windows.Forms.DataGridViewSelectionMode]::FullRowSelect
 $DataGridViewInstructors.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]348,[System.Int32]204))
 $DataGridViewInstructors.TabIndex = [System.Int32]13
-$DataGridViewInstructors.add_SelectionChanged($UpdateFiltered)
 #
 #LabelFilteredEvents
 #
@@ -196,6 +191,7 @@ $LabelFilteredEvents.TabIndex = [System.Int32]12
 $LabelFilteredEvents.Text = [System.String]'Filtered Events: 0'
 $LabelFilteredEvents.TextAlign = [System.Drawing.ContentAlignment]::BottomRight
 $LabelFilteredEvents.UseCompatibleTextRendering = $true
+$LabelFilteredEvents.Visible = $false
 #
 #LabelClassFilter
 #
@@ -214,7 +210,6 @@ $ComboBoxClassFilter.Location = (New-Object -TypeName System.Drawing.Point -Argu
 $ComboBoxClassFilter.Name = [System.String]'ComboBoxClassFilter'
 $ComboBoxClassFilter.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]121,[System.Int32]21))
 $ComboBoxClassFilter.TabIndex = [System.Int32]10
-$ComboBoxClassFilter.add_SelectedValueChanged($UpdateFiltered)
 #
 #LabelCourseFilter
 #
@@ -233,7 +228,6 @@ $ComboBoxCourseFilter.Location = (New-Object -TypeName System.Drawing.Point -Arg
 $ComboBoxCourseFilter.Name = [System.String]'ComboBoxCourseFilter'
 $ComboBoxCourseFilter.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]121,[System.Int32]21))
 $ComboBoxCourseFilter.TabIndex = [System.Int32]8
-$ComboBoxCourseFilter.add_SelectedValueChanged($UpdateFiltered)
 #
 #LabelEndFilter
 #
@@ -265,7 +259,6 @@ $DateTimePickerEndFilter.Name = [System.String]'DateTimePickerEndFilter'
 $DateTimePickerEndFilter.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]200,[System.Int32]21))
 $DateTimePickerEndFilter.TabIndex = [System.Int32]3
 $DateTimePickerEndFilter.Value = (New-Object -TypeName System.DateTime -ArgumentList @([System.Int32]2020,[System.Int32]4,[System.Int32]20,[System.Int32]0,[System.Int32]0,[System.Int32]0,[System.Int32]0))
-$DateTimePickerEndFilter.add_ValueChanged($UpdateFiltered)
 #
 #DateTimePickerStartFilter
 #
@@ -275,7 +268,6 @@ $DateTimePickerStartFilter.Name = [System.String]'DateTimePickerStartFilter'
 $DateTimePickerStartFilter.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]200,[System.Int32]21))
 $DateTimePickerStartFilter.TabIndex = [System.Int32]2
 $DateTimePickerStartFilter.Value = (New-Object -TypeName System.DateTime -ArgumentList @([System.Int32]2020,[System.Int32]4,[System.Int32]20,[System.Int32]0,[System.Int32]0,[System.Int32]0,[System.Int32]0))
-$DateTimePickerStartFilter.add_ValueChanged($UpdateFiltered)
 #
 #LabelInstructorFilter
 #
@@ -379,20 +371,9 @@ $ButtonOutlookSched.UseCompatibleTextRendering = $true
 $ButtonOutlookSched.UseVisualStyleBackColor = $true
 $ButtonOutlookSched.add_Click($OpenOutlookForm)
 #
-#PictureBox1
-#
-$PictureBox1.ImageLocation = [System.String]''
-$PictureBox1.InitialImage = ([System.Drawing.Image]$resources.'PictureBox1.InitialImage')
-$PictureBox1.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]730,[System.Int32]2))
-$PictureBox1.Name = [System.String]'PictureBox1'
-$PictureBox1.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]100,[System.Int32]50))
-$PictureBox1.TabIndex = [System.Int32]2
-$PictureBox1.TabStop = $false
-#
 #FormInstructorUtilization
 #
 $FormInstructorUtilization.ClientSize = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]829,[System.Int32]671))
-$FormInstructorUtilization.Controls.Add($PictureBox1)
 $FormInstructorUtilization.Controls.Add($GroupBoxSchedEvents)
 $FormInstructorUtilization.Controls.Add($GroupBoxReports)
 $FormInstructorUtilization.Controls.Add($GroupBoxFilters)
@@ -408,7 +389,6 @@ $GroupBoxFilters.ResumeLayout($false)
 $GroupBoxReports.ResumeLayout($false)
 ([System.ComponentModel.ISupportInitialize]$NumericUpDownInstAvail).EndInit()
 $GroupBoxSchedEvents.ResumeLayout($false)
-([System.ComponentModel.ISupportInitialize]$PictureBox1).EndInit()
 $FormInstructorUtilization.ResumeLayout($false)
 Add-Member -InputObject $FormInstructorUtilization -Name base -Value $base -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name GroupBoxClassesLoaded -Value $GroupBoxClassesLoaded -MemberType NoteProperty
@@ -438,6 +418,5 @@ Add-Member -InputObject $FormInstructorUtilization -Name ButtonQuarterlyReport -
 Add-Member -InputObject $FormInstructorUtilization -Name GroupBoxSchedEvents -Value $GroupBoxSchedEvents -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name ButtoniCalSched -Value $ButtoniCalSched -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name ButtonOutlookSched -Value $ButtonOutlookSched -MemberType NoteProperty
-Add-Member -InputObject $FormInstructorUtilization -Name PictureBox1 -Value $PictureBox1 -MemberType NoteProperty
 }
 . InitializeComponent
