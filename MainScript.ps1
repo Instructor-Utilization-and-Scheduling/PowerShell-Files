@@ -45,7 +45,7 @@ $MonthlyReport = {
 }
 $ImportSched = {
     #open new form.
-    
+    . (Join-Path $PSScriptRoot 'NewSched.ps1')
 }
 $UpdateFiltered = {
     $SelectedInstructors = @(foreach ($row in $DataGridViewInstructors.SelectedRows) {
