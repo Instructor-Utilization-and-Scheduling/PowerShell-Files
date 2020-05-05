@@ -19,6 +19,8 @@ $FormInstructorUtilization = New-Object -TypeName System.Windows.Forms.Form
 [System.Windows.Forms.DateTimePicker]$DateTimePickerStartFilter = $null
 [System.Windows.Forms.Label]$LabelInstructorFilter = $null
 [System.Windows.Forms.GroupBox]$GroupBoxReports = $null
+[System.Windows.Forms.Label]$LabelCRUtilRate = $null
+[System.Windows.Forms.NumericUpDown]$NumericUpDownCRUtilRate = $null
 [System.Windows.Forms.Label]$LabelInstAvail = $null
 [System.Windows.Forms.NumericUpDown]$NumericUpDownInstAvail = $null
 [System.Windows.Forms.Button]$ButtonMonthlyReport = $null
@@ -48,6 +50,8 @@ $DateTimePickerEndFilter = (New-Object -TypeName System.Windows.Forms.DateTimePi
 $DateTimePickerStartFilter = (New-Object -TypeName System.Windows.Forms.DateTimePicker)
 $LabelInstructorFilter = (New-Object -TypeName System.Windows.Forms.Label)
 $GroupBoxReports = (New-Object -TypeName System.Windows.Forms.GroupBox)
+$LabelCRUtilRate = (New-Object -TypeName System.Windows.Forms.Label)
+$NumericUpDownCRUtilRate = (New-Object -TypeName System.Windows.Forms.NumericUpDown)
 $LabelInstAvail = (New-Object -TypeName System.Windows.Forms.Label)
 $NumericUpDownInstAvail = (New-Object -TypeName System.Windows.Forms.NumericUpDown)
 $ButtonMonthlyReport = (New-Object -TypeName System.Windows.Forms.Button)
@@ -60,6 +64,7 @@ $GroupBoxClassesLoaded.SuspendLayout()
 $GroupBoxFilters.SuspendLayout()
 ([System.ComponentModel.ISupportInitialize]$DataGridViewInstructors).BeginInit()
 $GroupBoxReports.SuspendLayout()
+([System.ComponentModel.ISupportInitialize]$NumericUpDownCRUtilRate).BeginInit()
 ([System.ComponentModel.ISupportInitialize]$NumericUpDownInstAvail).BeginInit()
 $GroupBoxSchedEvents.SuspendLayout()
 $FormInstructorUtilization.SuspendLayout()
@@ -82,6 +87,7 @@ $GroupBoxClassesLoaded.UseCompatibleTextRendering = $true
 #
 #DataGridViewClassesLoaded
 #
+$DataGridViewClassesLoaded.AllowUserToAddRows = $false
 $DataGridViewClassesLoaded.AllowUserToDeleteRows = $false
 $DataGridViewClassesLoaded.ColumnHeadersHeightSizeMode = [System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode]::AutoSize
 $DataGridViewClassesLoaded.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]204,[System.Int32]42))
@@ -123,6 +129,7 @@ $ButtonRemoveClassSched.TabIndex = [System.Int32]2
 $ButtonRemoveClassSched.Text = [System.String]'Delete Class Schedule'
 $ButtonRemoveClassSched.UseCompatibleTextRendering = $true
 $ButtonRemoveClassSched.UseVisualStyleBackColor = $true
+$ButtonRemoveClassSched.add_Click($DeleteSched)
 #
 #ButtonImportSched
 #
@@ -282,6 +289,8 @@ $LabelInstructorFilter.UseCompatibleTextRendering = $true
 #
 #GroupBoxReports
 #
+$GroupBoxReports.Controls.Add($LabelCRUtilRate)
+$GroupBoxReports.Controls.Add($NumericUpDownCRUtilRate)
 $GroupBoxReports.Controls.Add($LabelInstAvail)
 $GroupBoxReports.Controls.Add($NumericUpDownInstAvail)
 $GroupBoxReports.Controls.Add($ButtonMonthlyReport)
@@ -295,11 +304,29 @@ $GroupBoxReports.TabStop = $false
 $GroupBoxReports.Text = [System.String]'Reports'
 $GroupBoxReports.UseCompatibleTextRendering = $true
 #
+#LabelCRUtilRate
+#
+$LabelCRUtilRate.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]0,[System.Int32]18))
+$LabelCRUtilRate.Name = [System.String]'LabelCRUtilRate'
+$LabelCRUtilRate.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]112,[System.Int32]23))
+$LabelCRUtilRate.TabIndex = [System.Int32]5
+$LabelCRUtilRate.Text = [System.String]'CR Util Rate %'
+$LabelCRUtilRate.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
+$LabelCRUtilRate.UseCompatibleTextRendering = $true
+#
+#NumericUpDownCRUtilRate
+#
+$NumericUpDownCRUtilRate.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]124,[System.Int32]20))
+$NumericUpDownCRUtilRate.Name = [System.String]'NumericUpDownCRUtilRate'
+$NumericUpDownCRUtilRate.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]57,[System.Int32]21))
+$NumericUpDownCRUtilRate.TabIndex = [System.Int32]4
+$NumericUpDownCRUtilRate.Value = (New-Object -TypeName System.Decimal -ArgumentList @(,[System.Int32[]]@([System.Int32]37,[System.Int32]0,[System.Int32]0,[System.Int32]0)))
+#
 #LabelInstAvail
 #
-$LabelInstAvail.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]24,[System.Int32]20))
+$LabelInstAvail.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]174,[System.Int32]20))
 $LabelInstAvail.Name = [System.String]'LabelInstAvail'
-$LabelInstAvail.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]207,[System.Int32]23))
+$LabelInstAvail.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]153,[System.Int32]23))
 $LabelInstAvail.TabIndex = [System.Int32]3
 $LabelInstAvail.Text = [System.String]'Instructors Available'
 $LabelInstAvail.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
@@ -307,7 +334,7 @@ $LabelInstAvail.UseCompatibleTextRendering = $true
 #
 #NumericUpDownInstAvail
 #
-$NumericUpDownInstAvail.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]238,[System.Int32]20))
+$NumericUpDownInstAvail.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]333,[System.Int32]20))
 $NumericUpDownInstAvail.Minimum = (New-Object -TypeName System.Decimal -ArgumentList @(,[System.Int32[]]@([System.Int32]2,[System.Int32]0,[System.Int32]0,[System.Int32]0)))
 $NumericUpDownInstAvail.Name = [System.String]'NumericUpDownInstAvail'
 $NumericUpDownInstAvail.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]63,[System.Int32]21))
@@ -387,6 +414,7 @@ $GroupBoxClassesLoaded.ResumeLayout($false)
 $GroupBoxFilters.ResumeLayout($false)
 ([System.ComponentModel.ISupportInitialize]$DataGridViewInstructors).EndInit()
 $GroupBoxReports.ResumeLayout($false)
+([System.ComponentModel.ISupportInitialize]$NumericUpDownCRUtilRate).EndInit()
 ([System.ComponentModel.ISupportInitialize]$NumericUpDownInstAvail).EndInit()
 $GroupBoxSchedEvents.ResumeLayout($false)
 $FormInstructorUtilization.ResumeLayout($false)
@@ -411,6 +439,8 @@ Add-Member -InputObject $FormInstructorUtilization -Name DateTimePickerEndFilter
 Add-Member -InputObject $FormInstructorUtilization -Name DateTimePickerStartFilter -Value $DateTimePickerStartFilter -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name LabelInstructorFilter -Value $LabelInstructorFilter -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name GroupBoxReports -Value $GroupBoxReports -MemberType NoteProperty
+Add-Member -InputObject $FormInstructorUtilization -Name LabelCRUtilRate -Value $LabelCRUtilRate -MemberType NoteProperty
+Add-Member -InputObject $FormInstructorUtilization -Name NumericUpDownCRUtilRate -Value $NumericUpDownCRUtilRate -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name LabelInstAvail -Value $LabelInstAvail -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name NumericUpDownInstAvail -Value $NumericUpDownInstAvail -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name ButtonMonthlyReport -Value $ButtonMonthlyReport -MemberType NoteProperty
