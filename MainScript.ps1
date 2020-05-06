@@ -1,8 +1,71 @@
+
+
+
 # Including what will be our module....
 . (Join-Path $PSScriptRoot 'InstructorUtilizationModule.ps1')
 
 Add-Type -AssemblyName System.Windows.Forms
 . (Join-Path $PSScriptRoot 'MainScript.designer.ps1')
+function CheckConfigFiles($dir) {
+    $ChecksOut = $true
+    $requiredfiles = "events.csv","NameAliases.csv","whitelist.csv"
+    $requiredfiles | 
+        ForEach-Object {
+            if (!(Test-Path -Path "$dir\$_")) {
+                $msg = "Can't find {0} in {1}" -f $_, $dir
+                $msg += "`nUpdate config.cfg with the appropriate path!"
+                $caption = "Error"
+                [System.Windows.Forms.MessageBox]::Show($msg, $caption, 0, 16) | Out-Null
+                $ChecksOut = $false
+            }
+        }
+    Return $ChecksOut
+} #function CheckConfigFiles
+$InvertSelection = {
+    foreach ($row in $DataGridViewInstructors.rows) {
+        if ($row.selected) {
+            $row.Selected = $false            
+        }
+        else {$row.Selected = $true}
+    } #Foreach row
+}
+$SelDOD = {
+    foreach ($row in $DataGridViewInstructors.rows) {
+        if ($row.cells[1].Value -eq "T") {
+            $row.Selected = $true            
+        }
+        else {$row.Selected = $false}
+    } #Foreach row
+} #SelDOD
+
+$CreateiCal = {
+    $ButtoniCalSched.Text = "Working"
+    $ButtoniCalSched.Enabled = $false
+    $fileSelector = New-Object System.Windows.Forms.SaveFileDialog
+    $fileSelector.Filter = "iCal files (*.ics)|*.ics"
+    $fileSelector.FilterIndex = 2
+    if ($fileselector.ShowDialog() -eq [system.Windows.Forms.DialogResult]::OK) {
+        $UpdateFiltered.Invoke()
+        $script:FilteredEvents | Export-ICS -Path $fileSelector.FileName        
+    }
+    $ButtoniCalSched.text = "Create iCal File"
+    $ButtoniCalSched.Enabled = $true
+} #CreateiCal
+
+$ChangeDataSource = {
+    $folderBrowser = New-Object -TypeName System.Windows.Forms.FolderBrowserDialog 
+    $folderBrowser.Description = "Select the directory containing the source files you want to use."
+    $folderBrowser.ShowNewFolderButton = $false
+    #$folderBrowser.RootFolder = [System.Environment+SpecialFolder]::MyDocuments
+    $selection = $folderBrowser.ShowDialog()
+    if ($selection -eq [System.Windows.Forms.DialogResult]::OK) {
+        if (CheckConfigFiles -dir $folderBrowser.selectedpath) {
+            Set-Content -Path (Join-Path -Path $PSScriptRoot 'config.cfg') -Value $folderBrowser.selectedpath
+            $Script:GetConfig.Invoke()
+            $Script:MainDataLoad.Invoke()
+        }
+    }
+} #ChangeDataSource
 
 $ViewEventGrid = {
     $UpdateFiltered.Invoke()    
@@ -23,7 +86,7 @@ $DeleteSched = {
         $Script:AllEvents = $Script:AllEvents |
                                 Where-Object {!($_.course -eq $course -and $_.class -eq $class)}
         $Script:AllEvents | Export-Csv -Path (Join-Path -Path $Config 'events.csv')
-        $MainDataLoad.Invoke()
+        $Script:MainDataLoad.Invoke()
     }
     $ButtonRemoveClassSched.Text = "Delete Class Schedule"
     $ButtonRemoveClassSched.Enabled = $true
@@ -93,24 +156,26 @@ $InstrUtilizationLoaded = {
 # Form Layout script
 . (Join-Path $PSScriptRoot 'MainScript.designer.ps1')
 
+
 # Getting Configuration Information
-$Config = Get-Content -Path (Join-Path -Path $PSScriptRoot 'config.cfg')
-$requiredfiles = "events.csv","NameAliases.csv","whitelist.csv"
-$requiredfiles | 
-    ForEach-Object {
-        if (!(Test-Path -Path "$Config\$_")) {
-            $msg = "Can't find required config files in $Config"
-            $msg += "`nUpdate config.cfg with the appropriate path and ensure the following files are present:`n"
-            $msg += $requiredfiles -join "`n"
-            $caption = "Error"
-            [System.Windows.Forms.MessageBox]::Show($msg, $caption, 0, 16)
-            throw $msg
-        }
+$GetConfig = {
+    $result = CheckConfigFiles -dir (Get-Content -Path (Join-Path -Path $PSScriptRoot 'config.cfg'))
+    if ($result) {
+        $script:Config = Get-Content -Path (Join-Path -Path $PSScriptRoot 'config.cfg')
     }
+    else {
+        throw "Cannot start program due to invalid data input path"
+
+    }
+} # GetConfig
 
 # Loading Data
 $MainDataLoad = {
-    [InstructorEvent[]]$Script:AllEvents = @(Import-Csv -Path (Join-Path -Path $Config 'events.csv'))
+
+    if (!(CheckConfigFiles -dir $script:Config)) {
+        throw "Unable to load data due to invalid input path."
+    }
+    [InstructorEvent[]]$Script:AllEvents = @(Import-Csv -Path (Join-Path -Path $script:Config 'events.csv'))
     [InstructorEvent[]]$Script:FilteredEvents = $AllEvents
     $Script:Instructors = @(Import-Csv -Path (Join-Path -Path $Config "whitelist.csv"))
     $Script:ClassesLoaded = @($AllEvents | 
@@ -192,5 +257,6 @@ $MainDataLoad = {
         }
 
 } #MainDataLoad
-$MainDataLoad.Invoke()
+$Script:GetConfig.Invoke()
+$Script:MainDataLoad.Invoke()
 $FormInstructorUtilization.ShowDialog() 

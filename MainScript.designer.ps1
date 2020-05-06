@@ -6,6 +6,8 @@ $FormInstructorUtilization = New-Object -TypeName System.Windows.Forms.Form
 [System.Windows.Forms.Button]$ButtonRemoveClassSched = $null
 [System.Windows.Forms.Button]$ButtonImportSched = $null
 [System.Windows.Forms.GroupBox]$GroupBoxFilters = $null
+[System.Windows.Forms.Button]$ButtonInvert = $null
+[System.Windows.Forms.Button]$ButtonSelDOD = $null
 [System.Windows.Forms.Button]$ButtonFilteredGrid = $null
 [System.Windows.Forms.DataGridView]$DataGridViewInstructors = $null
 [System.Windows.Forms.Label]$LabelFilteredEvents = $null
@@ -37,6 +39,7 @@ $ButtonChangeDataSrc = (New-Object -TypeName System.Windows.Forms.Button)
 $ButtonRemoveClassSched = (New-Object -TypeName System.Windows.Forms.Button)
 $ButtonImportSched = (New-Object -TypeName System.Windows.Forms.Button)
 $GroupBoxFilters = (New-Object -TypeName System.Windows.Forms.GroupBox)
+$ButtonSelDOD = (New-Object -TypeName System.Windows.Forms.Button)
 $ButtonFilteredGrid = (New-Object -TypeName System.Windows.Forms.Button)
 $DataGridViewInstructors = (New-Object -TypeName System.Windows.Forms.DataGridView)
 $LabelFilteredEvents = (New-Object -TypeName System.Windows.Forms.Label)
@@ -59,6 +62,7 @@ $ButtonQuarterlyReport = (New-Object -TypeName System.Windows.Forms.Button)
 $GroupBoxSchedEvents = (New-Object -TypeName System.Windows.Forms.GroupBox)
 $ButtoniCalSched = (New-Object -TypeName System.Windows.Forms.Button)
 $ButtonOutlookSched = (New-Object -TypeName System.Windows.Forms.Button)
+$ButtonInvert = (New-Object -TypeName System.Windows.Forms.Button)
 $GroupBoxClassesLoaded.SuspendLayout()
 ([System.ComponentModel.ISupportInitialize]$DataGridViewClassesLoaded).BeginInit()
 $GroupBoxFilters.SuspendLayout()
@@ -118,6 +122,7 @@ $ButtonChangeDataSrc.TabIndex = [System.Int32]3
 $ButtonChangeDataSrc.Text = [System.String]'Change Data Source Path'
 $ButtonChangeDataSrc.UseCompatibleTextRendering = $true
 $ButtonChangeDataSrc.UseVisualStyleBackColor = $true
+$ButtonChangeDataSrc.add_Click($ChangeDataSource)
 #
 #ButtonRemoveClassSched
 #
@@ -145,6 +150,8 @@ $ButtonImportSched.add_Click($ImportSched)
 #
 #GroupBoxFilters
 #
+$GroupBoxFilters.Controls.Add($ButtonInvert)
+$GroupBoxFilters.Controls.Add($ButtonSelDOD)
 $GroupBoxFilters.Controls.Add($ButtonFilteredGrid)
 $GroupBoxFilters.Controls.Add($DataGridViewInstructors)
 $GroupBoxFilters.Controls.Add($LabelFilteredEvents)
@@ -165,6 +172,17 @@ $GroupBoxFilters.TabIndex = [System.Int32]1
 $GroupBoxFilters.TabStop = $false
 $GroupBoxFilters.Text = [System.String]'Filters'
 $GroupBoxFilters.UseCompatibleTextRendering = $true
+#
+#ButtonSelDOD
+#
+$ButtonSelDOD.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]6,[System.Int32]57))
+$ButtonSelDOD.Name = [System.String]'ButtonSelDOD'
+$ButtonSelDOD.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]112,[System.Int32]23))
+$ButtonSelDOD.TabIndex = [System.Int32]15
+$ButtonSelDOD.Text = [System.String]'Select DOD Instr'
+$ButtonSelDOD.UseCompatibleTextRendering = $true
+$ButtonSelDOD.UseVisualStyleBackColor = $true
+$ButtonSelDOD.add_Click($SelDOD)
 #
 #ButtonFilteredGrid
 #
@@ -386,6 +404,7 @@ $ButtoniCalSched.TabIndex = [System.Int32]1
 $ButtoniCalSched.Text = [System.String]'Create iCal File'
 $ButtoniCalSched.UseCompatibleTextRendering = $true
 $ButtoniCalSched.UseVisualStyleBackColor = $true
+$ButtoniCalSched.add_Click($CreateiCal)
 #
 #ButtonOutlookSched
 #
@@ -397,6 +416,17 @@ $ButtonOutlookSched.Text = [System.String]'Create Outlook Schedule'
 $ButtonOutlookSched.UseCompatibleTextRendering = $true
 $ButtonOutlookSched.UseVisualStyleBackColor = $true
 $ButtonOutlookSched.add_Click($OpenOutlookForm)
+#
+#ButtonInvert
+#
+$ButtonInvert.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]6,[System.Int32]86))
+$ButtonInvert.Name = [System.String]'ButtonInvert'
+$ButtonInvert.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]112,[System.Int32]23))
+$ButtonInvert.TabIndex = [System.Int32]16
+$ButtonInvert.Text = [System.String]'Invert Selection'
+$ButtonInvert.UseCompatibleTextRendering = $true
+$ButtonInvert.UseVisualStyleBackColor = $true
+$ButtonInvert.add_Click($InvertSelection)
 #
 #FormInstructorUtilization
 #
@@ -426,6 +456,8 @@ Add-Member -InputObject $FormInstructorUtilization -Name ButtonChangeDataSrc -Va
 Add-Member -InputObject $FormInstructorUtilization -Name ButtonRemoveClassSched -Value $ButtonRemoveClassSched -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name ButtonImportSched -Value $ButtonImportSched -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name GroupBoxFilters -Value $GroupBoxFilters -MemberType NoteProperty
+Add-Member -InputObject $FormInstructorUtilization -Name ButtonInvert -Value $ButtonInvert -MemberType NoteProperty
+Add-Member -InputObject $FormInstructorUtilization -Name ButtonSelDOD -Value $ButtonSelDOD -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name ButtonFilteredGrid -Value $ButtonFilteredGrid -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name DataGridViewInstructors -Value $DataGridViewInstructors -MemberType NoteProperty
 Add-Member -InputObject $FormInstructorUtilization -Name LabelFilteredEvents -Value $LabelFilteredEvents -MemberType NoteProperty
