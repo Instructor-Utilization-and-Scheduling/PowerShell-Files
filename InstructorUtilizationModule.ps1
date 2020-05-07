@@ -874,8 +874,7 @@ function Get-OutlookCalendars
             $i++
         }
         $Folders | 
-            Where-Object {$_.defaultmessageclass -eq "IPM.Appointment" -and $_.parent.fullfolderpath -notlike "*\Trash"}
-    
+            Where-Object {$_.defaultmessageclass -eq "IPM.Appointment" -and $_.parent.fullfolderpath -notlike "*\Trash" -and $_.parent.fullfolderpath -notlike "*\Deleted Items"}
 
         # If Outlook was not running prior to the function call, quit the application
         if (!$OutlookRunning){ $outlook.quit() } 

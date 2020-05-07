@@ -133,7 +133,7 @@ $UpdateFiltered = {
         $row.cells[0].value
     })
     if ($ComboBoxClassFilter.SelectedItem -and $ComboBoxCourseFilter.SelectedItem) {            
-        [InstructorEvent[]]$script:FilteredEvents = @($AllEvents | 
+        [InstructorEvent[]]$script:FilteredEvents = @($script:AllEvents | 
             Where-Object {$_.Instructor -in $SelectedInstructors -and $_.start -ge $DateTimePickerStartFilter.Value -and $_.end -le $DateTimePickerEndFilter.Value -and $_.Course -like $ComboBoxCourseFilter.SelectedItem.ToString() -and $_.Class -like $ComboBoxClassFilter.SelectedItem.ToString()})
     } # if
 } # UpdateFiltered
@@ -141,7 +141,7 @@ $OpenOutlookForm = {
     $defaultText = $ButtonOutlookSched.text
     $ButtonOutlookSched.text = "Working..."
     $ButtonOutlookSched.Enabled = $false
-    $UpdateFiltered.Invoke()
+    $script:UpdateFiltered.Invoke()
     . (Join-Path $PSScriptRoot 'OutlookForm.ps1')
     $ButtonOutlookSched.text = $defaultText
     $ButtonOutlookSched.Enabled = $true
@@ -165,7 +165,6 @@ $GetConfig = {
     }
     else {
         throw "Cannot start program due to invalid data input path"
-
     }
 } # GetConfig
 
