@@ -568,8 +568,8 @@ function Measure-Events
                 @{n="Inst`n$($UtilizationRate.ToString('P0')) Util (hrs)";e={$totalutilization};f="N0"},
                 @{n="Inst Avg`nUtil (hrs)";e={$TotalSummary.Average};f="N0"},
                 @{n="Instr`nAvailable";e={$InstructorsAvailable};f="N0"},
-                @{n="Available`nCap (hrs)";e={$InstructorsAvailable * $TotalCapacity};f="N0"},
-                #@{n="Available`nUtil (hrs)";e={$InstructorsAvailable * $totalutilization};f="N0"},
+                #@{n="Available`nCap (hrs)";e={$InstructorsAvailable * $TotalCapacity};f="N0"},
+                @{n="Available`nUtil (hrs)";e={$InstructorsAvailable * $totalutilization};f="N0"},
                 @{n="Actual`nUtil (hrs)";e={$TotalSummary.Sum};f="N0"},
                 @{n="Util`nRate";e={($TotalSummary.Sum / ($totalutilization * $InstructorsAvailable))};f="P2"}
         
@@ -679,7 +679,7 @@ function Measure-Events
             @{n="Inst`n$($UtilizationRate.ToString('P0')) Util (hrs)";e={$_.AvailU};f="N0"},
             @{n="Inst Avg`nUtil (hrs)";e={$_.AvgU};f="N0"},
             @{n="Instr`nAvailable";e={$_.count};f="N0"},
-            @{n="Available`nCap (hrs)";e={$_.count * $_.AvailC};f="N0"},
+            #@{n="Available`nCap (hrs)";e={$_.count * $_.AvailC};f="N0"},
             @{n="Available`nUtil (hrs)";e={$_.count * $_.AvailU};f="N0"},
             @{n="Actual`nUtil (hrs)";e={$_.Sum};f="N0"},
             @{n="Util`nRate";e={$_.AvgURt};f="P2"} -AutoSize
