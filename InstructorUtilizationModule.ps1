@@ -548,7 +548,7 @@ function Measure-Events
         "Report Covering {0:d} - {1:d}" -f $ReportStart, $ReportEnd
         "`nClassroom Utilization Rate Used for Calculations: {0:P0}" -f $UtilizationRate
         "Annual Capacity: {0:N0} hours" -f $AnnualCapacity
-        "Annual Classroom Utilization: {0:N0} hours" -f ($AnnualCapacity*$UtilizationRate)
+        "Annual Classroom Utilization (Capcity * Utilization Rate): {0:N0} hours" -f ($AnnualCapacity*$UtilizationRate)
 
         # Calculating report totals
         $totaldays = ($ReportEnd - $ReportStart).TotalDays + 1
@@ -561,44 +561,40 @@ function Measure-Events
                     Measure-Object -Property "sum" -Average -Sum
 
         # Final total rollup
-        "`nReport Rollup {0:d} - {1:d}" -f $ReportStart, $ReportEnd
+        "`nReport Rollup {0:d} - {1:d} ({2} Instructors)" -f $ReportStart, $ReportEnd, $InstructorsAvailable
         [PSCustomObject]@{Heading = "Totals"} |
             Format-Table -AutoSize -Property @{n="Total Days";e={$totaldays};f="N0"},
-                @{n="Inst`nCap (hrs)";e={$TotalCapacity};f="N0"},
-                @{n="Inst`n$($UtilizationRate.ToString('P0')) Util (hrs)";e={$totalutilization};f="N0"},
-                @{n="Inst Avg`nUtil (hrs)";e={$TotalSummary.Average};f="N0"},
-                @{n="Instr`nAvailable";e={$InstructorsAvailable};f="N0"},
-                #@{n="Available`nCap (hrs)";e={$InstructorsAvailable * $TotalCapacity};f="N0"},
-                @{n="Available`nUtil (hrs)";e={$InstructorsAvailable * $totalutilization};f="N0"},
+                @{n="Avail`nCap (hrs)";e={$TotalCapacity * $InstructorsAvailable};f="N0"},
+                @{n="Avail`nUtil (hrs)";e={$totalutilization * $InstructorsAvailable};f="N0"},
                 @{n="Actual`nUtil (hrs)";e={$TotalSummary.Sum};f="N0"},
-                @{n="Util`nRate";e={($TotalSummary.Sum / ($totalutilization * $InstructorsAvailable))};f="P2"}
+                @{n="`nUtil Rate";e={($TotalSummary.Sum / ($TotalCapacity * $InstructorsAvailable))};f="P2"}
         
         $summarytable = $events |
             Sort-Object -Property Instructor |
                 Group-Object -Property Instructor |
                 Sort-Object -Property @{e={[double]($_.Group | Measure-Object -Sum duration).sum}} -descending | 
                     Format-Table -AutoSize -Property "Name",
-                        @{n="Primary (hrs)"
+                        @{n="`nPrim (hrs)"
                             e={[double]($_.Group | Where-Object Role -eq "Primary" | Measure-Object -Sum duration).sum}
                             f="N2"},
-                        @{n="Secondary (hrs)"
+                        @{n="`nStby (hrs)"
                             e={[double]($_.Group | Where-Object Role -eq "Secondary" | Measure-Object -Sum duration).sum}
                             f="N2"},
-                        @{n="Support (hrs)"
+                        @{n="`nSupp (hrs)"
                             e={[double]($_.Group | Where-Object Role -eq "Support" | Measure-Object -Sum duration).sum}
                             f="N2"},
-                        @{n="Secondary/Support (hrs)"
+                        @{n="`nStdby/Supp (hrs)"
                             e={[double]($_.Group | Where-Object Role -eq "Secondary/Support" | Measure-Object -Sum duration).sum}
                             f="N2"},
-                        @{n="Total (hrs)"
+                        @{n="`nTotal (hrs)"
                             e={[double]($_.Group | Measure-Object -Sum duration).sum}
                             f="N2"},
-                        @{n="CR Util Rate"
-                            e={[double]($_.Group | Measure-Object -Sum duration).sum / ($TotalCapacity * $UtilizationRate)}
+                        @{n="CR`nUtil Rate"
+                            e={[double]($_.Group | Measure-Object -Sum duration).sum / ($TotalCapacity)}
                             f="P2"}, 
-                        @{n="Util Remaining (hrs)"
+                        @{n="Util`nRemaining (hrs)"
                             e={($TotalCapacity * $UtilizationRate) - ($_.Group | Measure-Object -Sum duration).sum}
-                            f="N2"} 
+                            f="N1"} 
 
         $groupTables = @()
         $groupSummaries = @()
@@ -629,6 +625,7 @@ function Measure-Events
             # Calculating group totals
             $gpdays  = ($endgroupdate - $startgroupdate).TotalDays + 1
             $GpCapacity = $gpdays * $DailyCapacity
+            $GpTotalCapacity = $GpCapacity * $InstructorsAvailable
             $CRUtilization = $GpCapacity * $UtilizationRate
             $gpSummary = $GroupEvents | 
             Group-Object -Property Instructor |
@@ -639,50 +636,51 @@ function Measure-Events
                 Days   = $gpdays
                 AvailC = $GpCapacity
                 AvailU = $CRUtilization
+                AvailTC = $GpTotalCapacity
+                AvailTU = $GpTotalCapacity * $UtilizationRate
                 count  = $InstructorsAvailable
                 sum    = $gpSummary.Sum
                 AvgU   = $gpSummary.Average
-                AvgURt = $gpSummary.Sum / ($CRUtilization * $InstructorsAvailable)
+                AvgURt = $gpSummary.Sum / $GpTotalCapacity
             }
             $groupTables += $gp
             $groupTables += $GroupEvents |
                 Group-Object -Property Instructor |
                     Sort-Object -Property @{e={($_.Group | Measure-Object -Sum duration).sum}} -Descending |
                     Format-Table -AutoSize -Property @{n="Instructor";e={$_.Name}},
-                        @{n="Primary (hrs)"
+                        @{n="`nPrim (hrs)"
                             e={[double]($_.Group | Where-Object Role -eq "Primary" | Measure-Object -Sum duration).sum}
                             f="N2"},
-                        @{n="Secondary (hrs)"
+                        @{n="`nStdby (hrs)"
                             e={[double]($_.Group | Where-Object Role -eq "Secondary" | Measure-Object -Sum duration).sum}
                             f="N2"},
-                        @{n="Support (hrs)"
+                        @{n="`nSupp (hrs)"
                             e={[double]($_.Group | Where-Object Role -eq "Support" | Measure-Object -Sum duration).sum}
                             f="N2"},
-                        @{n="Secondary/Support (hrs)"
+                        @{n="`nStdby/Supp (hrs)"
                             e={[double]($_.Group | Where-Object Role -eq "Secondary/Support" | Measure-Object -Sum duration).sum}
                             f="N2"},
-                        @{n="Total (hrs)"
+                        @{n="`nTotal (hrs)"
                             e={[double]($_.Group | Measure-Object -Sum duration).sum}
                             f="N2"},
-                        @{n="Util Rate"
-                            e={[double]($_.Group | Measure-Object -Sum duration).sum / ($GpCapacity * $UtilizationRate)}
+                        @{n="CR`nUtil Rate"
+                            e={[double]($_.Group | Measure-Object -Sum duration).sum / ($GpCapacity)}
                             f="P2"},
-                        @{n="Util Remaining (hrs)"
+                        @{n="Util`nRemaining (hrs)"
                             e={($GpCapacity * $UtilizationRate) - ($_.Group | Measure-Object -Sum duration).sum}
-                            f="N2"} 
+                            f="N1"} 
         } #foreach Group
-        $Grouping + " Rollup"
+        $Grouping + " Rollup (" + $InstructorsAvailable + " Instructors)"
         $groupSummaries |
         Format-Table -Property @{n="";e={$_.group}},
-            @{n="Days";e={$_.days};f="N0"},
-            @{n="Inst`nCap (hrs)";e={$_.AvailC};f="N0"},
-            @{n="Inst`n$($UtilizationRate.ToString('P0')) Util (hrs)";e={$_.AvailU};f="N0"},
-            @{n="Inst Avg`nUtil (hrs)";e={$_.AvgU};f="N0"},
-            @{n="Instr`nAvailable";e={$_.count};f="N0"},
-            #@{n="Available`nCap (hrs)";e={$_.count * $_.AvailC};f="N0"},
-            @{n="Available`nUtil (hrs)";e={$_.count * $_.AvailU};f="N0"},
+            #@{n="`nDays";e={$_.days};f="N0"},
+            @{n="Avail`nCap (hrs)";e={$_.AvailTC};f="N0"},
+            @{n="Avail`nUtil (hrs)";e={$_.AvailTU};f="N0"},
+            #@{n="Avail`nAvg Util (hrs)";e={$_.AvgU};f="N0"},
+            #@{n="Available`nCap (hrs)";e={$_.count * $_.AvailC};f ="N0"},
+            #@{n="Avail`nUtil (hrs)";e={$_.count * $_.AvailU};f="N0"},
             @{n="Actual`nUtil (hrs)";e={$_.Sum};f="N0"},
-            @{n="Util`nRate";e={$_.AvgURt};f="P2"} -AutoSize
+            @{n="`nUtil Rate";e={$_.AvgURt};f="P2"} -AutoSize
         
         "`nReport Summary"
         $summarytable
