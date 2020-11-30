@@ -1,6 +1,3 @@
-
-
-
 # Including what will be our module....
 . (Join-Path $PSScriptRoot 'InstructorUtilizationModule.ps1')
 
